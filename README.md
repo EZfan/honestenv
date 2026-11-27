@@ -32,7 +32,7 @@ honestenv check tasks/reservation-window --out report.json
 honestenv pack tasks/reservation-window --into dataset
 ```
 
-The first task, [`tasks/reservation-window`](tasks/reservation-window), is a small original deterministic program-repair task in Harbor schema 1.4.
+The original deterministic program-repair tasks are [`tasks/reservation-window`](tasks/reservation-window) and [`tasks/version-compare`](tasks/version-compare). Both use Harbor schema 1.4.
 
 ## CLI
 
