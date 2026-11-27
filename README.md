@@ -76,7 +76,7 @@ jobs:
 The workflow checks out the caller's repository and the specified honestenv ref.
 Its `test` job installs honestenv, runs the caller's Python unit tests in `tests/`,
 and runs static gates on all shipped tasks. Its `runtime` job runs official
-Docker-backed Harbor gates. On pull requests it compares against the base SHA:
+Docker-backed Harbor gates. On pull requests it compares changes since the merge base with the base SHA:
 changes under a shipped `tasks/<name>/` select that task; changes under `src/`,
 `pyproject.toml`, `.github/workflows/`, or `.github/actions/` select all tasks.
 Other changes skip runtime gates. Pushes to main run all tasks. Only directories

@@ -21,12 +21,17 @@ def select_runtime(changed_paths: list[str], task_names: list[str]) -> list[str]
     return sorted(selected)
 
 
+def diff_command(base_sha: str) -> list[str]:
+    """Compare the PR head with its merge base, excluding base-only changes."""
+    return ["git", "diff", "--no-renames", "--name-only", "-z", f"{base_sha}...HEAD"]
+
+
 def main() -> int:
     tasks = sorted(path for path in Path("tasks").iterdir()
                    if path.is_dir() and (path / "task.toml").is_file())
     if os.environ["EVENT_NAME"] == "pull_request":
         diff = subprocess.run(
-            ["git", "diff", "--no-renames", "--name-only", "-z", os.environ["PR_BASE_SHA"], "HEAD"],
+            diff_command(os.environ["PR_BASE_SHA"]),
             check=True, stdout=subprocess.PIPE,
         )
         selected = set(select_runtime(os.fsdecode(diff.stdout).split("\0"), [p.name for p in tasks]))
@@ -38,6 +43,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as temporary:
         for task in tasks:
             report = Path(temporary) / "report.json"
+            report.unlink(missing_ok=True)
             command = ["honestenv", "check", str(task), "--out", str(report)]
             if task.name not in selected:
                 command.append("--static-only")
