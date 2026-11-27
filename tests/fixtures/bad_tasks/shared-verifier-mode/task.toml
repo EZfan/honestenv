@@ -1,0 +1,13 @@
+schema_version = "1.4"
+artifacts = ["/app/program.py"]
+
+[verifier]
+environment_mode = "shared"
+timeout_sec = 30.0
+
+[agent]
+timeout_sec = 120.0
+user = "agent"
+
+[environment]
+network_mode = "no-network"

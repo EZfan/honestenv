@@ -44,6 +44,9 @@ The original deterministic program-repair tasks are [`tasks/reservation-window`]
 
 Factory checks require digest-pinned images in Dockerfiles and `environment.docker_image`, an explicit separate verifier, a non-root agent user, and a restricted agent network policy. Set `environment.network_mode` to `"no-network"`, or use a non-empty restricted allowlist. The agent can override the environment policy. Dockerfiles must not use host networking, and test material must not fetch from public hosts. Reward scripts are checked for obvious unconditional rewards, failure exits, nondeterminism, and missing checks of packaged artifacts. These static checks are heuristics; runtime gates still check the oracle and empty agent.
 
+The intentionally invalid packages in `tests/fixtures/bad_tasks/` verify that the
+factory gates reject bad tasks. They are not part of the shipped `tasks/` pack.
+
 The Headroom Policy requires an explicit, finite `verifier.timeout_sec` of at least 15 seconds. If `metadata.expected_oracle_runtime_sec` is a finite positive number, the timeout must also be at least three times that value.
 
 ## Status
