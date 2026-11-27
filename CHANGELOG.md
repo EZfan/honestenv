@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Added
 
+- The `invoice-cents`, `cut-field`, and `bind-config` tasks.
 - A reusable CI workflow and composite actions with incremental Harbor runtime checks and pull request checkups.
 - `honestenv pack` records a dataset manifest, and `honestenv verify-pack` checks packed tasks for changes.
 - `honestenv init <org/task>` creates a task skeleton, and `honestenv check --static-only` runs checks without Docker.
@@ -16,7 +17,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
 
-- Both shipped tasks use a no-network environment policy.
+- Shipped tasks use a no-network environment policy.
 - CI uses `actions/checkout@v7` and `actions/setup-python@v7` and runs official Docker-backed gates in a separate runtime job.
 
 ## 0.0.0
