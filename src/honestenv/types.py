@@ -28,3 +28,4 @@ class CommandResult:
     returncode: int
     stdout: str
     stderr: str
+    reward: float | int | None = None

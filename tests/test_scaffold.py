@@ -15,7 +15,7 @@ class ScaffoldTest(unittest.TestCase):
             TaskPackage: {"root": Path, "content_hash": str},
             GateReport: {"name": str, "passed": bool, "details": str},
             CheckReport: {"package": TaskPackage, "gates": list[GateReport], "passed": bool},
-            CommandResult: {"argv": list[str], "returncode": int, "stdout": str, "stderr": str},
+            CommandResult: {"argv": list[str], "returncode": int, "stdout": str, "stderr": str, "reward": float | int | None},
         }
         for cls, annotations in expected.items():
             with self.subTest(cls=cls):
