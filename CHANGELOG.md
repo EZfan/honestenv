@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Added
 
+- The `quoted-csv`, `text-normalize`, and `record-sort` tasks.
 - The `invoice-cents`, `cut-field`, and `bind-config` tasks.
 - A reusable CI workflow and composite actions with incremental Harbor runtime checks and pull request checkups.
 - `honestenv pack` records a dataset manifest, and `honestenv verify-pack` checks packed tasks for changes.
