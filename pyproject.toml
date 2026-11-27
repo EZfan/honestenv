@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "honestenv"
+version = "0.0.0"
+description = "Quality checks for Harbor-compatible task directories"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["harbor==0.27.0"]
+
+[project.scripts]
+honestenv = "honestenv.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
