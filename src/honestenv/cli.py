@@ -6,14 +6,20 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .gates.lint import check_lint
+from .gates.run import check_agent
 from .gates.schema import check_schema
 from .package import load
 from .types import CheckReport
 
 
-def check_task(task_dir: Path) -> CheckReport:
+def check_task(task_dir: Path, *, static_only: bool = False) -> CheckReport:
     package = load(task_dir)
     gates = [check_schema(package), check_lint(package)]
+    if not static_only:
+        gates.extend([
+            check_agent(package, agent="oracle", expected_reward=1.0),
+            check_agent(package, agent="nop", expected_reward=0.0),
+        ])
     report = CheckReport(package, gates, all(gate.passed for gate in gates))
     print(f"{package.root}: {'passed' if report.passed else 'failed'}")
     for gate in gates:
@@ -41,7 +47,7 @@ def run() -> int:
         if args.command == "test-gates":
             tasks_dir = Path("tasks")
             reports = [
-                check_task(task_dir)
+                check_task(task_dir, static_only=args.static_only)
                 for task_dir in sorted(tasks_dir.iterdir())
                 if task_dir.is_dir() and (task_dir / "task.toml").is_file()
             ]

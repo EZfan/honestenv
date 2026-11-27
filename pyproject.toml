@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "honestenv"
 version = "0.0.0"
-description = "Quality checks for Harbor-compatible task directories"
+description = "A Harbor-compatible factory for verifiable agent tasks"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = ["harbor==0.27.0"]
