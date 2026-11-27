@@ -58,6 +58,10 @@ class CLITest(unittest.TestCase):
         self.assertEqual(self.run_cli("check", self.task, "--out", output), 1)
         self.assertFalse(json.loads(output.read_text(encoding="utf-8"))["passed"])
 
+    def test_check_static_only_skips_runtime(self):
+        self.assertEqual(self.run_cli("check", self.task, "--static-only"), 0)
+        self.mock_agent.assert_not_called()
+
     def test_test_gates_checks_each_task_with_static_only(self):
         tasks = self.root / "tasks"
         tasks.mkdir()

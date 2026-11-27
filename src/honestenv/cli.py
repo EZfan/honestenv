@@ -10,6 +10,7 @@ from .gates.lint import check_lint
 from .gates.run import check_agent
 from .gates.schema import check_schema
 from .package import load
+from .scaffold import init_task
 from .types import CheckReport
 
 
@@ -32,9 +33,17 @@ def run() -> int:
     parser = argparse.ArgumentParser(prog="honestenv")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    init_parser = subparsers.add_parser(
+        "init", help="Create a task scaffold in tasks/<task>",
+        description="Create tasks/<task> in the current directory. An existing empty directory is allowed; a non-empty directory requires --force.",
+    )
+    init_parser.add_argument("name", metavar="org/task", help="Harbor name org/task; each part starts with an ASCII letter or digit and contains only letters, digits, dots, hyphens, or underscores, without ..")
+    init_parser.add_argument("--force", action="store_true", help="Overwrite scaffold files in an existing task directory")
+
     check_parser = subparsers.add_parser("check", help="Check a task directory")
     check_parser.add_argument("task_dir", type=Path)
     check_parser.add_argument("--out", type=Path)
+    check_parser.add_argument("--static-only", action="store_true", help="Run schema, lint and factory checks only")
 
     test_parser = subparsers.add_parser("test-gates", help="Check tasks in tasks/")
     test_parser.add_argument("--static-only", action="store_true")
@@ -45,6 +54,10 @@ def run() -> int:
 
     args = parser.parse_args()
     try:
+        if args.command == "init":
+            print(init_task(args.name, force=args.force))
+            return 0
+
         if args.command == "test-gates":
             tasks_dir = Path("tasks")
             reports = [
@@ -54,7 +67,7 @@ def run() -> int:
             ]
             return 0 if all(report.passed for report in reports) else 1
 
-        report = check_task(args.task_dir)
+        report = check_task(args.task_dir, static_only=args.command == "check" and args.static_only)
         if args.command == "check":
             if args.out is not None:
                 args.out.write_text(json.dumps(asdict(report), default=str, indent=2) + "\n", encoding="utf-8")
@@ -64,7 +77,7 @@ def run() -> int:
             shutil.copytree(report.package.root, destination)
             print(destination)
         return 0 if report.passed else 1
-    except OSError as error:
+    except (OSError, ValueError) as error:
         print(f"honestenv: {error}", file=sys.stderr)
         return 1
 

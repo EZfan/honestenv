@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Added
 
+- `honestenv init <org/task>` creates a task skeleton, and `honestenv check --static-only` runs checks without Docker.
 - Rejection fixtures in `tests/fixtures/bad_tasks/` that check factory gates without adding tasks to the shipped pack.
 - Static factory checks for image pins, verifier isolation and timeout headroom, agent network and user policy, test network access, and reward script quality.
 - The `version-compare` program-repair task.
