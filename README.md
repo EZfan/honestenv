@@ -139,6 +139,8 @@ The Headroom Policy requires an explicit, finite `verifier.timeout_sec` of at le
 
 Version 0.1.0 includes static and Docker-backed runtime gates, task initialization, packing and pack verification, incremental CI checks, and ten shipped tasks.
 
+Releases use the `publish.yml` Trusted Publisher workflow and the `pypi` environment.
+
 ## License
 
 [Apache-2.0](LICENSE).
