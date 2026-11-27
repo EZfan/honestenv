@@ -12,6 +12,7 @@ timeout_sec = 30.0
 
 [agent]
 timeout_sec = 120.0
+user = "agent"
 
 [environment]
 cpus = 1
