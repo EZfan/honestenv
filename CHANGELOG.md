@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Added
+
+- A PyPI Trusted Publisher workflow for releases and manual publishing.
+
 ## 0.1.0 - 2026-11-28
 
 ### Added
