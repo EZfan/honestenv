@@ -4,8 +4,11 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+## 0.1.0 - 2026-11-28
+
 ### Added
 
+- Package metadata and installation instructions for the 0.1.0 release.
 - The `job-order` and `date-shift` tasks.
 - The `quoted-csv`, `text-normalize`, and `record-sort` tasks.
 - The `invoice-cents`, `cut-field`, and `bind-config` tasks.
