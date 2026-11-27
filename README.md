@@ -40,7 +40,7 @@ honestenv pack tasks/reservation-window --into dataset
 honestenv verify-pack dataset
 ```
 
-The original deterministic program-repair tasks are [`tasks/reservation-window`](tasks/reservation-window) and [`tasks/version-compare`](tasks/version-compare). Both use Harbor schema 1.4.
+The original deterministic tasks are [`tasks/reservation-window`](tasks/reservation-window), [`tasks/version-compare`](tasks/version-compare), [`tasks/invoice-cents`](tasks/invoice-cents), [`tasks/cut-field`](tasks/cut-field), and [`tasks/bind-config`](tasks/bind-config). All use Harbor schema 1.4.
 
 ## CLI
 
