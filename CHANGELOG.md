@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
-No changes recorded yet.
+### Added
+
+- Collaboration and hygiene files: `.gitignore`, contributing and security guidance, a code of conduct, issue and pull request templates, and project URLs.
+
+### Changed
+
+- CI uses `actions/checkout@v7` and `actions/setup-python@v7` and runs official Docker-backed gates in a separate runtime job.
 
 ## 0.0.0
 
