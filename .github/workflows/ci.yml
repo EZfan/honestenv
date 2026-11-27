@@ -11,20 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-      - run: pip install -e .
-      - run: python -m unittest discover -s tests -v
-      - run: honestenv test-gates --static-only
+      - uses: ./.github/actions/test
 
   runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
-      - run: pip install -e .
-      - run: honestenv test-gates
+          fetch-depth: 0
+      - uses: ./.github/actions/runtime
