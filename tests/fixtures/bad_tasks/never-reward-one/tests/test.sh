@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+mkdir -p /logs/verifier
+echo 0 > /logs/verifier/reward.txt
+if [ "$(python /app/program.py)" = "hello" ]; then
+    echo 0 > /logs/verifier/reward.txt
+fi

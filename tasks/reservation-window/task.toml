@@ -15,6 +15,7 @@ timeout_sec = 120.0
 user = "agent"
 
 [environment]
+network_mode = "no-network"
 cpus = 1
 memory_mb = 512
 storage_mb = 1024
