@@ -11,7 +11,17 @@ Checkable training and evaluation tasks are scarce. [Harbor](https://docs.harbor
 
 ## Quickstart
 
-With Python 3.12 or newer, clone the repository and install the package:
+With Python 3.12 or newer, once the package is published, install it with either:
+
+```sh
+pip install honestenv
+```
+
+```sh
+uv tool install honestenv
+```
+
+To install from a checkout:
 
 ```sh
 git clone https://github.com/EZfan/honestenv.git
@@ -127,7 +137,7 @@ The Headroom Policy requires an explicit, finite `verifier.timeout_sec` of at le
 
 ## Status
 
-Version 0.0.0 includes static gates for Harbor schema 1.4 and `harbor lint --extend-select ALL`, plus Docker-backed runtime gates. CI runs the runtime gates in a separate job.
+Version 0.1.0 includes static and Docker-backed runtime gates, task initialization, packing and pack verification, incremental CI checks, and ten shipped tasks.
 
 ## License
 

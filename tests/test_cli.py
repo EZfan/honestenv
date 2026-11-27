@@ -97,7 +97,7 @@ class CLITest(unittest.TestCase):
         original = manifest_path.read_text(encoding="utf-8")
         manifest = json.loads(original)
         self.assertEqual(manifest["tasks"]["task"]["schema_version"], "1.4")
-        self.assertEqual(manifest["tasks"]["task"]["honestenv_version"], "0.0.0")
+        self.assertEqual(manifest["tasks"]["task"]["honestenv_version"], "0.1.0")
         self.assertTrue(manifest["tasks"]["task"]["checked_at"].endswith("Z"))
         self.assertEqual(self.run_cli("verify-pack", dataset), 0)
         packed_file = dataset / "task" / "instruction.md"
