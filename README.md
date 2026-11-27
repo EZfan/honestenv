@@ -47,3 +47,7 @@ Version 0.0.0 includes static gates for Harbor schema 1.4 and `harbor lint --ext
 ## License
 
 [Apache-2.0](LICENSE).
+
+## Project links
+
+[Contributing](CONTRIBUTING.md) | [Changelog](CHANGELOG.md) | [Security](SECURITY.md) | [Code of Conduct](CODE_OF_CONDUCT.md)

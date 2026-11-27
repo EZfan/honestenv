@@ -10,6 +10,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = ["harbor==0.27.0"]
 
+[project.urls]
+Homepage = "https://github.com/EZfan/honestenv"
+Repository = "https://github.com/EZfan/honestenv"
+Issues = "https://github.com/EZfan/honestenv/issues"
+Changelog = "https://github.com/EZfan/honestenv/blob/main/CHANGELOG.md"
+
 [project.scripts]
 honestenv = "honestenv.cli:main"
 
