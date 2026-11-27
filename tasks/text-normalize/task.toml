@@ -1,0 +1,21 @@
+schema_version = "1.4"
+artifacts = ['/app/textnorm/__init__.py', '/app/textnorm/spaces.py', '/app/textnorm/case.py']
+
+[metadata]
+difficulty = "easy"
+category = "programming"
+tags = ['python', 'program-repair', 'unicode']
+
+[verifier]
+environment_mode = "separate"
+timeout_sec = 30.0
+
+[agent]
+timeout_sec = 120.0
+user = "agent"
+
+[environment]
+network_mode = "no-network"
+cpus = 1
+memory_mb = 512
+storage_mb = 1024
