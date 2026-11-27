@@ -1,0 +1,14 @@
+name: honestenv test
+description: Run unit tests and static gates
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: '3.12'
+    - shell: bash
+      run: pip install "$GITHUB_ACTION_PATH/../../.."
+    - shell: bash
+      run: python -m unittest discover -s tests -v
+    - shell: bash
+      run: honestenv test-gates --static-only

@@ -1,0 +1,38 @@
+name: honestenv check
+
+on:
+  workflow_call:
+    inputs:
+      honestenv-ref:
+        description: Commit SHA or tag of honestenv containing the actions
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: EZfan/honestenv
+          ref: ${{ inputs.honestenv-ref }}
+          path: .honestenv-ci
+      - uses: ./.honestenv-ci/.github/actions/test
+
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v7
+        with:
+          repository: EZfan/honestenv
+          ref: ${{ inputs.honestenv-ref }}
+          path: .honestenv-ci
+      - uses: ./.honestenv-ci/.github/actions/runtime

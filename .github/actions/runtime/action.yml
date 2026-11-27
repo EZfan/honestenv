@@ -1,0 +1,24 @@
+name: honestenv runtime
+description: Run incremental Harbor gates and report pull request results
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: '3.12'
+    - shell: bash
+      run: pip install "$GITHUB_ACTION_PATH/../../.."
+    - id: gates
+      shell: bash
+      env:
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        EVENT_NAME: ${{ github.event_name }}
+        REPORT_PATH: ${{ runner.temp }}/honestenv-checkup.md
+      run: python "$GITHUB_ACTION_PATH/checkup.py"
+    - if: ${{ always() && github.event_name == 'pull_request' && steps.gates.outcome != 'skipped' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPORT_PATH: ${{ runner.temp }}/honestenv-checkup.md
+      run: python "$GITHUB_ACTION_PATH/comment.py"

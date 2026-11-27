@@ -57,6 +57,65 @@ over task files in sorted relative POSIX path order. For each file, the UTF-8
 path and file bytes are each preceded by their length as an 8-byte big-endian
 integer. The digest is lowercase hexadecimal.
 
+## CI
+
+Repositories with tasks in `tasks/` can call the reusable workflow. Replace both
+`<ref>` values with the same commit SHA or tag of this repository:
+
+```yaml
+jobs:
+  honestenv:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: EZfan/honestenv/.github/workflows/honestenv-check.yml@<ref>
+    with:
+      honestenv-ref: <ref>
+```
+
+The workflow checks out the caller's repository and the specified honestenv ref.
+Its `test` job installs honestenv, runs the caller's Python unit tests in `tests/`,
+and runs static gates on all shipped tasks. Its `runtime` job runs official
+Docker-backed Harbor gates. On pull requests it compares changes since the merge base with the base SHA:
+changes under a shipped `tasks/<name>/` select that task; changes under `src/`,
+`pyproject.toml`, `.github/workflows/`, or `.github/actions/` select all tasks.
+Other changes skip runtime gates. Pushes to main run all tasks. Only directories
+under `tasks/` containing `task.toml` are shipped tasks; canary fixtures are not.
+
+On pull requests, the runtime job posts or updates a Markdown checkup with each
+task's schema, lint, factory, and runtime results. Unchanged tasks have runtime
+marked skipped. It uses the default `GITHUB_TOKEN`; grant `contents: read` and
+`pull-requests: write` to the calling job. Fork pull requests may receive a
+read-only token, so their checkup comment may be unavailable.
+
+A reusable workflow's checks are named `<caller-job> / test` and
+`<caller-job> / runtime`. To keep exact check names `test` and `runtime`, compose
+the actions as steps in your own jobs instead:
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EZfan/honestenv/.github/actions/test@<ref>
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: EZfan/honestenv/.github/actions/runtime@<ref>
+```
+
+Use a commit SHA or tag for each `<ref>`. The runtime action requires full Git
+history to compare the PR base. This repository uses these composite actions in
+its own `test` and `runtime` jobs. A standalone action repository may come later.
+
 ## Factory policy
 
 Factory checks require digest-pinned images in Dockerfiles and `environment.docker_image`, an explicit separate verifier, a non-root agent user, and a restricted agent network policy. Set `environment.network_mode` to `"no-network"`, or use a non-empty restricted allowlist. The agent can override the environment policy. Dockerfiles must not use host networking, and test material must not fetch from public hosts. Reward scripts are checked for obvious unconditional rewards, failure exits, nondeterminism, and missing checks of packaged artifacts. These static checks are heuristics; runtime gates still check the oracle and empty agent.

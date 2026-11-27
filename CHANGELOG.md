@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Added
 
+- A reusable CI workflow and composite actions with incremental Harbor runtime checks and pull request checkups.
 - `honestenv pack` records a dataset manifest, and `honestenv verify-pack` checks packed tasks for changes.
 - `honestenv init <org/task>` creates a task skeleton, and `honestenv check --static-only` runs checks without Docker.
 - Rejection fixtures in `tests/fixtures/bad_tasks/` that check factory gates without adding tasks to the shipped pack.
