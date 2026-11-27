@@ -5,6 +5,7 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from .gates.baseline import check_baseline
 from .gates.lint import check_lint
 from .gates.run import check_agent
 from .gates.schema import check_schema
@@ -14,7 +15,7 @@ from .types import CheckReport
 
 def check_task(task_dir: Path, *, static_only: bool = False) -> CheckReport:
     package = load(task_dir)
-    gates = [check_schema(package), check_lint(package)]
+    gates = [check_schema(package), check_lint(package), check_baseline(package)]
     if not static_only:
         gates.extend([
             check_agent(package, agent="oracle", expected_reward=1.0),

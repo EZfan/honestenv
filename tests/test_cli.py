@@ -18,8 +18,13 @@ class CLITest(unittest.TestCase):
         self.task.mkdir()
         files = {
             "instruction.md": "Complete the task.\n",
-            "task.toml": 'schema_version = "1.4"\n[environment]\ndocker_image = "alpine"\n',
-            "tests/test.sh": "#!/bin/sh\n",
+            "task.toml": (
+                'schema_version = "1.4"\nartifacts = ["/app/program.py"]\n'
+                '[environment]\ndocker_image = "alpine@sha256:' + 'a' * 64 + '"\n'
+                'network_mode = "no-network"\n[verifier]\nenvironment_mode = "separate"\n'
+                'timeout_sec = 30.0\n[agent]\nuser = "agent"\n'
+            ),
+            "tests/test.sh": "#!/bin/sh\nif python /app/program.py; then\n echo 1 > /logs/verifier/reward.txt\nfi\n",
             "solution/solve.sh": "#!/bin/sh\n",
         }
         for name, content in files.items():
@@ -48,7 +53,7 @@ class CLITest(unittest.TestCase):
         report = json.loads(output.read_text(encoding="utf-8"))
         self.assertTrue(report["passed"])
         self.assertEqual(report["package"]["root"], str(self.task))
-        self.assertEqual([gate["name"] for gate in report["gates"]], ["schema", "lint", "oracle", "nop"])
+        self.assertEqual([gate["name"] for gate in report["gates"]], ["schema", "lint", "factory", "oracle", "nop"])
         self.mock_lint.return_value = GateReport("lint", False, "issues")
         self.assertEqual(self.run_cli("check", self.task, "--out", output), 1)
         self.assertFalse(json.loads(output.read_text(encoding="utf-8"))["passed"])

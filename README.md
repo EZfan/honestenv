@@ -36,13 +36,19 @@ The original deterministic program-repair tasks are [`tasks/reservation-window`]
 
 ## CLI
 
-- `honestenv check <task-dir> [--out report.json]` runs schema checks, `harbor lint --extend-select ALL`, and official Docker-backed `harbor run` checks. The built-in solution agent (`-a oracle`) must return a valid reward of exactly 1.0, and the empty agent (`-a nop`) must return a valid reward of exactly 0.0. The command optionally writes a JSON report.
-- `honestenv test-gates [--static-only]` runs the same checks for every task under `tasks/`. With `--static-only`, it runs only schema and lint checks.
+- `honestenv check <task-dir> [--out report.json]` runs schema checks, factory policy checks, `harbor lint --extend-select ALL`, and official Docker-backed `harbor run` checks. The built-in solution agent (`-a oracle`) must return a valid reward of exactly 1.0, and the empty agent (`-a nop`) must return a valid reward of exactly 0.0. The command optionally writes a JSON report.
+- `honestenv test-gates [--static-only]` runs the same checks for every task under `tasks/`. With `--static-only`, it runs schema, factory policy, and lint checks.
 - `honestenv pack <task-dir> --into <dataset-dir>` runs the full check, including runtime gates, and copies the task into the dataset. It refuses to pack if checks fail or if the destination task directory already exists.
+
+## Factory policy
+
+Factory checks require digest-pinned images in Dockerfiles and `environment.docker_image`, an explicit separate verifier, a non-root agent user, and a restricted agent network policy. Set `environment.network_mode` to `"no-network"`, or use a non-empty restricted allowlist. The agent can override the environment policy. Dockerfiles must not use host networking, and test material must not fetch from public hosts. Reward scripts are checked for obvious unconditional rewards, failure exits, nondeterminism, and missing checks of packaged artifacts. These static checks are heuristics; runtime gates still check the oracle and empty agent.
+
+The Headroom Policy requires an explicit, finite `verifier.timeout_sec` of at least 15 seconds. If `metadata.expected_oracle_runtime_sec` is a finite positive number, the timeout must also be at least three times that value.
 
 ## Status
 
-Version 0.0.0 includes static gates for Harbor schema 1.4 and `harbor lint --extend-select ALL`, plus Docker-backed runtime gates. CI runs the static gates only. Docker is not yet used on GitHub Actions.
+Version 0.0.0 includes static gates for Harbor schema 1.4 and `harbor lint --extend-select ALL`, plus Docker-backed runtime gates. CI runs the runtime gates in a separate job.
 
 ## License
 

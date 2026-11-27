@@ -6,11 +6,13 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Added
 
+- Static factory checks for image pins, verifier isolation and timeout headroom, agent network and user policy, test network access, and reward script quality.
 - The `version-compare` program-repair task.
 - Collaboration and hygiene files: `.gitignore`, contributing and security guidance, a code of conduct, issue and pull request templates, and project URLs.
 
 ### Changed
 
+- Both shipped tasks use a no-network environment policy.
 - CI uses `actions/checkout@v7` and `actions/setup-python@v7` and runs official Docker-backed gates in a separate runtime job.
 
 ## 0.0.0
