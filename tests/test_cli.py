@@ -58,6 +58,10 @@ class CLITest(unittest.TestCase):
         self.assertEqual(self.run_cli("check", self.task, "--out", output), 1)
         self.assertFalse(json.loads(output.read_text(encoding="utf-8"))["passed"])
 
+    def test_check_static_only_skips_runtime(self):
+        self.assertEqual(self.run_cli("check", self.task, "--static-only"), 0)
+        self.mock_agent.assert_not_called()
+
     def test_test_gates_checks_each_task_with_static_only(self):
         tasks = self.root / "tasks"
         tasks.mkdir()
@@ -84,6 +88,48 @@ class CLITest(unittest.TestCase):
         self.mock_lint.return_value = GateReport("lint", True, "clean")
         self.assertEqual(self.run_cli("pack", self.task, "--into", destination), 0)
         self.assertEqual((destination / "task" / "instruction.md").read_text(), "Complete the task.\n")
+
+    def test_verify_pack_detects_changes_and_unlisted_tasks(self):
+        dataset = self.root / "dataset"
+        self.assertEqual(self.run_cli("verify-pack", dataset), 1)
+        self.assertEqual(self.run_cli("pack", self.task, "--into", dataset), 0)
+        manifest_path = dataset / "dataset-manifest.json"
+        original = manifest_path.read_text(encoding="utf-8")
+        manifest = json.loads(original)
+        self.assertEqual(manifest["tasks"]["task"]["schema_version"], "1.4")
+        self.assertEqual(manifest["tasks"]["task"]["honestenv_version"], "0.0.0")
+        self.assertTrue(manifest["tasks"]["task"]["checked_at"].endswith("Z"))
+        self.assertEqual(self.run_cli("verify-pack", dataset), 0)
+        packed_file = dataset / "task" / "instruction.md"
+        packed_file.write_text("changed\n", encoding="utf-8")
+        self.assertEqual(self.run_cli("verify-pack", dataset), 1)
+        packed_file.write_text("Complete the task.\n", encoding="utf-8")
+        manifest["tasks"]["task"]["schema_version"] = "9.9"
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        self.assertEqual(self.run_cli("verify-pack", dataset), 1)
+        manifest_path.write_text("{", encoding="utf-8")
+        self.assertEqual(self.run_cli("verify-pack", dataset), 1)
+        manifest_path.write_text(original, encoding="utf-8")
+        extra = dataset / "extra"
+        extra.mkdir()
+        (extra / "task.toml").write_text('', encoding="utf-8")
+        self.assertEqual(self.run_cli("verify-pack", dataset), 1)
+
+    def test_pack_merges_manifest_and_failed_copy_leaves_it_unchanged(self):
+        dataset = self.root / "dataset"
+        self.assertEqual(self.run_cli("pack", self.task, "--into", dataset), 0)
+        manifest_path = dataset / "dataset-manifest.json"
+        original = manifest_path.read_text(encoding="utf-8")
+        self.assertEqual(self.run_cli("pack", self.task, "--into", dataset), 1)
+        self.assertEqual(manifest_path.read_text(encoding="utf-8"), original)
+        second = self.root / "second"
+        import shutil
+        shutil.copytree(self.task, second)
+        self.assertEqual(self.run_cli("pack", second, "--into", dataset), 0)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(set(manifest["tasks"]), {"task", "second"})
+        self.assertEqual(manifest["tasks"]["task"], json.loads(original)["tasks"]["task"])
+        self.assertEqual(self.run_cli("verify-pack", dataset), 0)
 
 
 if __name__ == "__main__":

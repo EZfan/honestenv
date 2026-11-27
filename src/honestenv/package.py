@@ -1,3 +1,9 @@
+"""Load tasks and hash their files.
+
+SHA-256 covers files in sorted relative POSIX path order. For each file, the
+UTF-8 path and file bytes are each preceded by their 8-byte big-endian length.
+The recorded digest is lowercase hexadecimal.
+"""
 import hashlib
 from pathlib import Path
 

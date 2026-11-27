@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "honestenv"
-version = "0.0.0"
+dynamic = ["version"]
 description = "A Harbor-compatible factory for verifiable agent tasks"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -21,3 +21,6 @@ honestenv = "honestenv.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "honestenv.__version__"}

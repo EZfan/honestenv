@@ -2,14 +2,18 @@ import argparse
 import json
 import shutil
 import sys
+import tomllib
+from datetime import datetime, timezone
 from dataclasses import asdict
 from pathlib import Path
 
+from . import __version__
 from .gates.baseline import check_baseline
 from .gates.lint import check_lint
 from .gates.run import check_agent
 from .gates.schema import check_schema
 from .package import load
+from .scaffold import init_task
 from .types import CheckReport
 
 
@@ -28,13 +32,62 @@ def check_task(task_dir: Path, *, static_only: bool = False) -> CheckReport:
     return report
 
 
+def read_manifest(dataset: Path) -> dict:
+    path = dataset / "dataset-manifest.json"
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict) or set(manifest) != {"tasks"} or not isinstance(manifest["tasks"], dict):
+            raise ValueError("expected an object with a tasks object")
+        for name, entry in manifest["tasks"].items():
+            if not isinstance(name, str) or name in ("", ".", "..") or Path(name).name != name or "\\" in name:
+                raise ValueError("invalid task directory name")
+            if not isinstance(entry, dict) or set(entry) != {"content_sha256", "schema_version", "checked_at", "honestenv_version"}:
+                raise ValueError(f"invalid entry for {name}")
+            if any(not isinstance(value, str) or not value for value in entry.values()):
+                raise ValueError(f"invalid entry for {name}")
+            digest = entry["content_sha256"]
+            if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+                raise ValueError(f"invalid content hash for {name}")
+            timestamp = entry["checked_at"]
+            if not timestamp.endswith("Z") or datetime.fromisoformat(timestamp[:-1] + "+00:00").utcoffset() != timezone.utc.utcoffset(None):
+                raise ValueError(f"invalid check timestamp for {name}")
+        return manifest
+    except (OSError, ValueError) as error:
+        raise ValueError(f"invalid or missing manifest {path}: {error}") from error
+
+
+def verify_pack(dataset: Path) -> None:
+    manifest = read_manifest(dataset)
+    for name, entry in manifest["tasks"].items():
+        task = dataset / name
+        package = load(task)
+        with (task / "task.toml").open("rb") as task_file:
+            schema_version = tomllib.load(task_file)["schema_version"]
+        if schema_version != entry["schema_version"]:
+            raise ValueError(f"schema version mismatch for {name}")
+        if package.content_hash != entry["content_sha256"]:
+            raise ValueError(f"content hash mismatch for {name}")
+    for task in dataset.iterdir():
+        if task.is_dir() and (task / "task.toml").is_file() and task.name not in manifest["tasks"]:
+            raise ValueError(f"unlisted task directory: {task.name}")
+    print(f"{dataset}: verified")
+
+
 def run() -> int:
     parser = argparse.ArgumentParser(prog="honestenv")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    init_parser = subparsers.add_parser(
+        "init", help="Create a task scaffold in tasks/<task>",
+        description="Create tasks/<task> in the current directory. An existing empty directory is allowed; a non-empty directory requires --force.",
+    )
+    init_parser.add_argument("name", metavar="org/task", help="Harbor name org/task; each part starts with an ASCII letter or digit and contains only letters, digits, dots, hyphens, or underscores, without ..")
+    init_parser.add_argument("--force", action="store_true", help="Overwrite scaffold files in an existing task directory")
+
     check_parser = subparsers.add_parser("check", help="Check a task directory")
     check_parser.add_argument("task_dir", type=Path)
     check_parser.add_argument("--out", type=Path)
+    check_parser.add_argument("--static-only", action="store_true", help="Run schema, lint and factory checks only")
 
     test_parser = subparsers.add_parser("test-gates", help="Check tasks in tasks/")
     test_parser.add_argument("--static-only", action="store_true")
@@ -43,8 +96,19 @@ def run() -> int:
     pack_parser.add_argument("task_dir", type=Path)
     pack_parser.add_argument("--into", type=Path, required=True)
 
+    verify_parser = subparsers.add_parser("verify-pack", help="Verify a dataset manifest and its tasks")
+    verify_parser.add_argument("dataset_dir", type=Path)
+
     args = parser.parse_args()
     try:
+        if args.command == "init":
+            print(init_task(args.name, force=args.force))
+            return 0
+
+        if args.command == "verify-pack":
+            verify_pack(args.dataset_dir)
+            return 0
+
         if args.command == "test-gates":
             tasks_dir = Path("tasks")
             reports = [
@@ -54,17 +118,28 @@ def run() -> int:
             ]
             return 0 if all(report.passed for report in reports) else 1
 
-        report = check_task(args.task_dir)
+        report = check_task(args.task_dir, static_only=args.command == "check" and args.static_only)
         if args.command == "check":
             if args.out is not None:
                 args.out.write_text(json.dumps(asdict(report), default=str, indent=2) + "\n", encoding="utf-8")
         elif report.passed:
             args.into.mkdir(parents=True, exist_ok=True)
             destination = args.into / report.package.root.name
+            manifest_path = args.into / "dataset-manifest.json"
+            manifest = read_manifest(args.into) if manifest_path.exists() else {"tasks": {}}
+            with (report.package.root / "task.toml").open("rb") as task_file:
+                schema_version = tomllib.load(task_file)["schema_version"]
             shutil.copytree(report.package.root, destination)
+            manifest["tasks"][destination.name] = {
+                "content_sha256": load(destination).content_hash,
+                "schema_version": schema_version,
+                "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "honestenv_version": __version__,
+            }
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
             print(destination)
         return 0 if report.passed else 1
-    except OSError as error:
+    except (OSError, ValueError, KeyError) as error:
         print(f"honestenv: {error}", file=sys.stderr)
         return 1
 
