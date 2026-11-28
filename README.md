@@ -1,15 +1,16 @@
-# honestenv
+<h1 align="center">honestenv</h1>
+<p align="center">Verifiable agent tasks, checked before they ship.</p>
+<p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a></p>
+<p align="center">
+  <a href="https://pypi.org/project/honestenv/0.1.1/"><img src="https://img.shields.io/badge/PyPI-0.1.1-blue" alt="PyPI 0.1.1"></a>
+  <a href="https://pypi.org/project/honestenv/"><img src="https://img.shields.io/badge/python-%3E%3D3.12-blue" alt="Python 3.12 or newer"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license"></a>
+  <a href="https://github.com/EZfan/honestenv/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/EZfan/honestenv/ci.yml?branch=main&amp;label=CI" alt="CI status"></a>
+</p>
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+honestenv provides quality gates and task packs for [Harbor](https://docs.harborframework.com/)-compatible agent tasks.
 
-Verifiable agent tasks, checked before they ship.
-
-honestenv is a Harbor-compatible factory for verifiable agent tasks. Its core is
-quality gates and owned task packs, not an agent framework.
-
-[![CI](https://github.com/EZfan/honestenv/actions/workflows/ci.yml/badge.svg)](https://github.com/EZfan/honestenv/actions/workflows/ci.yml) ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue) ![Python >=3.12](https://img.shields.io/badge/python-%3E%3D3.12-blue) ![Harbor 0.27.0](https://img.shields.io/badge/Harbor-0.27.0-blue)
-
-Checkable training and evaluation tasks are scarce. [Harbor](https://docs.harborframework.com/) provides the task format and runtime; honestenv owns the gates that check tasks and the packs that contain them.
+[Quickstart](#quickstart) · [Scope](#scope) · [Workflow](#workflow) · [CLI](#cli) · [CI](#ci) · [Limitations and roadmap](#limitations-and-roadmap)
 
 ## Quickstart
 
@@ -32,9 +33,39 @@ honestenv check tasks/my-task --static-only
 
 The generated task is local to your current directory. Full checks require Docker and Docker Compose.
 
+## Scope
+
+| Tool / stage | Role |
+| --- | --- |
+| Harbor `lint` | Checks task configuration, isolation, image pinning, and common runtime risks; honestenv reuses it. |
+| OpenEnv `openenv validate` | Validates environment structure and operability; its Harbor binding supports semantic checks subject to the execution environment. |
+| honestenv 0.1.1 | Adds factory policy, Docker oracle/nop gates, checked snapshot packing, and manifest verification. |
+| honestenv planned | Behavioral counterexamples, shortcut probes, evidence-pack replay, and post-fix regression gates are not 0.1.1 features. |
+
+OpenEnv 0.15.0's Harbor dependency is 0.25.0, so it needs a separate environment from honestenv's pinned Harbor 0.27.0. In a local Docker comparison on two 0.1.1 tasks, runtime and dependent semantic checks were skipped even after adding the required manifest because the verifier environment is separate; skipped checks should not be described as missed defects.
+
+## Workflow
+
+```mermaid
+flowchart LR
+    A[Task] --> B[Static / Policy Check]
+    B --> C[Docker Oracle / Nop]
+    C --> D[Checked Snapshot / Manifest]
+    D --> E[Regression in CI]
+    E --> A
+    C -. planned .-> F[Behavioral Counterexamples / Probes]
+    F -. planned .-> G[Evidence Pack / Replay]
+    G -. planned .-> E
+```
+
+Solid arrows show an available check and CI path; dashed arrows are planned capabilities. Today `verify-pack` checks the manifest and content hashes; it does not replay runtime evidence.
+
 ## Checkout examples
 
-The wheel does not include the repository task pack. After 0.1.1 is released, check out its tag to use the versioned examples:
+<details>
+<summary>View task pack examples</summary>
+
+The wheel does not include the repository task pack. Check out the 0.1.1 tag to use the versioned examples:
 
 ```sh
 git clone --branch v0.1.1 https://github.com/EZfan/honestenv.git
@@ -58,7 +89,22 @@ honestenv verify-pack dataset
 
 The original deterministic tasks are [`tasks/reservation-window`](tasks/reservation-window), [`tasks/version-compare`](tasks/version-compare), [`tasks/invoice-cents`](tasks/invoice-cents), [`tasks/cut-field`](tasks/cut-field), [`tasks/bind-config`](tasks/bind-config), [`tasks/quoted-csv`](tasks/quoted-csv), [`tasks/text-normalize`](tasks/text-normalize), [`tasks/record-sort`](tasks/record-sort), [`tasks/job-order`](tasks/job-order), and [`tasks/date-shift`](tasks/date-shift). All use Harbor schema 1.4. Their verifiers run submitted code in unprivileged subprocesses and check its returned results before awarding a reward.
 
+</details>
+
+## CLI at a glance
+
+| Command | Purpose |
+| --- | --- |
+| `init` | Create a task skeleton. |
+| `check` | Check one task; `--static-only` skips runtime. |
+| `test-gates` | Check tasks under `tasks/`. |
+| `pack` | Check and pack a private snapshot. |
+| `verify-pack` | Verify the manifest and content hashes without Docker. |
+
 ## CLI
+
+<details>
+<summary>Command and manifest details</summary>
 
 - `honestenv init <org/task> [--force]` writes a task skeleton to `tasks/<task>` in the current directory and records `org/task` as the task name. Each component must start with a letter or digit and contain only ASCII letters, digits, dots, hyphens, and underscores. Neither component may contain `..`. An existing empty directory can be used. A non-empty destination requires `--force`, which may overwrite its files.
 - `honestenv check <task-dir> [--static-only] [--out report.json]` runs schema checks, factory policy checks, `harbor lint --extend-select ALL`, and official Docker-backed `harbor run` checks. The built-in solution agent (`-a oracle`) must return a valid reward of exactly 1.0, and the empty agent (`-a nop`) must return a valid reward of exactly 0.0. With `--static-only`, it skips the runtime checks. The command optionally writes a JSON report.
@@ -72,6 +118,8 @@ ISO-8601 ending in `Z`), and `honestenv_version`. The content hash is SHA-256
 over task files in sorted relative POSIX path order. For each file, the UTF-8
 path and file bytes are each preceded by their length as an 8-byte big-endian
 integer. The digest is lowercase hexadecimal. Compare a check report’s `package.content_hash` to the manifest entry to check that they describe the same file content. The hash does not include permissions, empty directories, images, runtime, or network configuration. Packing checks the snapshot’s permissions and content for changes during the check.
+
+</details>
 
 ## CI
 
@@ -143,11 +191,21 @@ factory gates reject bad tasks. They are not part of the shipped `tasks/` pack.
 
 The Headroom Policy requires an explicit, finite `verifier.timeout_sec` of at least 15 seconds. If `metadata.expected_oracle_runtime_sec` is a finite positive number, the timeout must also be at least three times that value.
 
+## Limitations and roadmap
+
+<details>
+<summary>Known limitations and planned stages</summary>
+
+- **HE-003:** Static heuristics can produce false positives, including `date` in comments; passing checks does not prove a verifier correct.
+- **v0.1.x:** Improve the reproducible CLI, rule IDs, and explicit result states.
+- **v0.5 (planned):** Versioned quality profiles, case and evidence schemas, and independent compatibility tests.
+- **v1.0 (planned):** Explore extension interfaces, migration policies, and interoperability across implementations; multi-party adoption still needs evidence.
+
+</details>
+
 ## Status
 
 Version 0.1.1 includes static and Docker-backed runtime gates, task initialization, packing and pack verification, incremental CI checks, and ten shipped tasks.
-
-To prepare a release, run CI on the exact commit, then create a `v0.1.1` tag at that commit and use the 0.1.1 changelog section as the GitHub Release notes. The `publish.yml` workflow checks that CI succeeded on a main-branch push for the checked-out commit, builds the distributions, and smoke-tests the wheel in a clean environment before publishing through the `pypi` Trusted Publisher environment. The release tag, CI commit, release notes, and published distributions must refer to the same version and commit. Publishing does not verify Docker-backed checks.
 
 ## License
 
