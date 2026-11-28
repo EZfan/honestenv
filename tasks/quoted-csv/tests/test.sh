@@ -1,11 +1,15 @@
 #!/bin/sh
 set -eu
 mkdir -p /logs/verifier
+chmod 700 /logs/verifier
 echo 0 > /logs/verifier/reward.txt
-if python - <<'PY'
+if python -I - <<'PY'
 import sys
+sys.path.insert(0, "/tests")
+from runner import call
 sys.path.insert(0, "/app")
-from csvrow import parse_csv_row, parse_csv
+parse_csv_row = call('csvrow', 'parse_csv_row')
+parse_csv = call('csvrow', 'parse_csv')
 
 assert parse_csv_row("alpha,beta") == ["alpha", "beta"]
 assert parse_csv_row('one,"two,three",four') == ["one", "two,three", "four"]

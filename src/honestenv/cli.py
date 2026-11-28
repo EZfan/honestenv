@@ -1,7 +1,9 @@
 import argparse
 import json
+import os
 import shutil
 import sys
+import tempfile
 import tomllib
 from datetime import datetime, timezone
 from dataclasses import asdict
@@ -12,19 +14,22 @@ from .gates.baseline import check_baseline
 from .gates.lint import check_lint
 from .gates.run import check_agent
 from .gates.schema import check_schema
-from .package import load
+from .package import content_hash, load, permissions
 from .scaffold import init_task
 from .types import CheckReport
 
 
 def check_task(task_dir: Path, *, static_only: bool = False) -> CheckReport:
     package = load(task_dir)
+    original_permissions = permissions(package)
     gates = [check_schema(package), check_lint(package), check_baseline(package)]
     if not static_only:
         gates.extend([
             check_agent(package, agent="oracle", expected_reward=1.0),
             check_agent(package, agent="nop", expected_reward=0.0),
         ])
+    if content_hash(package) != package.content_hash or permissions(package) != original_permissions:
+        raise ValueError("task content changed during checks")
     report = CheckReport(package, gates, all(gate.passed for gate in gates))
     print(f"{package.root}: {'passed' if report.passed else 'failed'}")
     for gate in gates:
@@ -118,26 +123,50 @@ def run() -> int:
             ]
             return 0 if all(report.passed for report in reports) else 1
 
-        report = check_task(args.task_dir, static_only=args.command == "check" and args.static_only)
         if args.command == "check":
+            report = check_task(args.task_dir, static_only=args.static_only)
             if args.out is not None:
                 args.out.write_text(json.dumps(asdict(report), default=str, indent=2) + "\n", encoding="utf-8")
-        elif report.passed:
-            args.into.mkdir(parents=True, exist_ok=True)
-            destination = args.into / report.package.root.name
-            manifest_path = args.into / "dataset-manifest.json"
-            manifest = read_manifest(args.into) if manifest_path.exists() else {"tasks": {}}
-            with (report.package.root / "task.toml").open("rb") as task_file:
-                schema_version = tomllib.load(task_file)["schema_version"]
-            shutil.copytree(report.package.root, destination)
-            manifest["tasks"][destination.name] = {
-                "content_sha256": load(destination).content_hash,
-                "schema_version": schema_version,
-                "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "honestenv_version": __version__,
-            }
-            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-            print(destination)
+        else:
+            source = load(args.task_dir).root
+            with tempfile.TemporaryDirectory(prefix="honestenv-snapshot-") as directory:
+                snapshot = Path(directory) / source.name
+                shutil.copytree(source, snapshot, symlinks=True)
+                load(snapshot)  # Reject links introduced during the copy.
+                snapshot_permissions = permissions(load(snapshot))
+                report = check_task(snapshot)
+                if report.passed:
+                    args.into.mkdir(parents=True, exist_ok=True)
+                    destination = args.into / source.name
+                    if destination.exists() or destination.is_symlink():
+                        raise FileExistsError(destination)
+                    manifest_path = args.into / "dataset-manifest.json"
+                    manifest = read_manifest(args.into) if manifest_path.exists() else {"tasks": {}}
+                    with (snapshot / "task.toml").open("rb") as task_file:
+                        schema_version = tomllib.load(task_file)["schema_version"]
+                    with tempfile.TemporaryDirectory(prefix=".honestenv-pack-", dir=args.into) as staging:
+                        staged_task = Path(staging) / source.name
+                        shutil.copytree(snapshot, staged_task, symlinks=True)
+                        if (load(staged_task).content_hash != report.package.content_hash
+                                or content_hash(report.package) != report.package.content_hash
+                                or permissions(report.package) != snapshot_permissions
+                                or permissions(load(staged_task)) != snapshot_permissions):
+                            raise ValueError("snapshot changed after checks")
+                        manifest["tasks"][destination.name] = {
+                            "content_sha256": report.package.content_hash,
+                            "schema_version": schema_version,
+                            "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                            "honestenv_version": __version__,
+                        }
+                        staged_manifest = Path(staging) / "dataset-manifest.json"
+                        staged_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+                        os.rename(staged_task, destination)
+                        try:
+                            os.replace(staged_manifest, manifest_path)
+                        except OSError:
+                            shutil.rmtree(destination)
+                            raise
+                    print(destination)
         return 0 if report.passed else 1
     except (OSError, ValueError, KeyError) as error:
         print(f"honestenv: {error}", file=sys.stderr)

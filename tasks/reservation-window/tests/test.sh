@@ -2,13 +2,16 @@
 set -eu
 
 mkdir -p /logs/verifier
+chmod 700 /logs/verifier
 echo 0 > /logs/verifier/reward.txt
 
-if python - <<'PY'
+if python -I - <<'PY'
 import sys
+sys.path.insert(0, "/tests")
+from runner import call
 
 sys.path.insert(0, "/app")
-from reservation import is_reserved
+is_reserved = call('reservation', 'is_reserved')
 
 cases = [
     (59, 60, 90, False),

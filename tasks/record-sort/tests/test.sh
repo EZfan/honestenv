@@ -1,11 +1,14 @@
 #!/bin/sh
 set -eu
 mkdir -p /logs/verifier
+chmod 700 /logs/verifier
 echo 0 > /logs/verifier/reward.txt
-if python - <<'PY'
+if python -I - <<'PY'
 import sys
+sys.path.insert(0, "/tests")
+from runner import call
 sys.path.insert(0, "/app")
-from records import sort_records
+sort_records = call('records', 'sort_records')
 
 records = [
     {"name": "zebra", "qty": "10", "id": "first"},

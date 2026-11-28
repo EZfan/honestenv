@@ -4,3 +4,5 @@ WORKDIR /app
 COPY test.sh /tests/test.sh
 
 COPY app.py /app/app.py
+
+COPY runner.py /tests/runner.py

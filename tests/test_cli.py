@@ -89,6 +89,48 @@ class CLITest(unittest.TestCase):
         self.assertEqual(self.run_cli("pack", self.task, "--into", destination), 0)
         self.assertEqual((destination / "task" / "instruction.md").read_text(), "Complete the task.\n")
 
+    def test_pack_checks_and_delivers_snapshot_when_source_changes(self):
+        dataset = self.root / "dataset"
+        (self.task / "tests/test.sh").chmod(0o755)
+        report_path = self.root / "report.json"
+        self.assertEqual(self.run_cli("check", self.task, "--static-only", "--out", report_path), 0)
+        report = json.loads(report_path.read_text())
+        def edit_source(package, *, agent, expected_reward):
+            (self.task / "instruction.md").write_text("changed source\n")
+            return GateReport(agent, True, "ok")
+        self.mock_agent.side_effect = edit_source
+        self.assertEqual(self.run_cli("pack", self.task, "--into", dataset), 0)
+        self.assertEqual((dataset / "task" / "instruction.md").read_text(), "Complete the task.\n")
+        self.assertEqual((dataset / "task" / "tests/test.sh").stat().st_mode & 0o777, 0o755)
+        from honestenv.package import load
+        manifest = json.loads((dataset / "dataset-manifest.json").read_text())
+        self.assertEqual(manifest["tasks"]["task"]["content_sha256"], load(dataset / "task").content_hash)
+        self.assertEqual(report["package"]["content_hash"], manifest["tasks"]["task"]["content_sha256"])
+        self.assertEqual(self.run_cli("verify-pack", dataset), 0)
+
+    def test_pack_rejects_snapshot_changed_during_check(self):
+        dataset = self.root / "dataset"
+        def edit_snapshot(package, *, agent, expected_reward):
+            (package.root / "instruction.md").write_text("changed snapshot\n")
+            return GateReport(agent, True, "ok")
+        self.mock_agent.side_effect = edit_snapshot
+        self.assertEqual(self.run_cli("pack", self.task, "--into", dataset), 1)
+        self.assertFalse((dataset / "task").exists())
+        self.assertFalse((dataset / "dataset-manifest.json").exists())
+
+    def test_manifest_failure_removes_new_task_and_keeps_manifest(self):
+        dataset = self.root / "dataset"
+        self.assertEqual(self.run_cli("pack", self.task, "--into", dataset), 0)
+        original = (dataset / "dataset-manifest.json").read_bytes()
+        second = self.root / "second"
+        import shutil
+        shutil.copytree(self.task, second)
+        with patch("honestenv.cli.os.replace", side_effect=OSError("write failed")):
+            self.assertEqual(self.run_cli("pack", second, "--into", dataset), 1)
+        self.assertFalse((dataset / "second").exists())
+        self.assertEqual((dataset / "dataset-manifest.json").read_bytes(), original)
+        self.assertEqual(self.run_cli("verify-pack", dataset), 0)
+
     def test_verify_pack_detects_changes_and_unlisted_tasks(self):
         dataset = self.root / "dataset"
         self.assertEqual(self.run_cli("verify-pack", dataset), 1)

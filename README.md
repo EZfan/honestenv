@@ -50,14 +50,14 @@ honestenv pack tasks/reservation-window --into dataset
 honestenv verify-pack dataset
 ```
 
-The original deterministic tasks are [`tasks/reservation-window`](tasks/reservation-window), [`tasks/version-compare`](tasks/version-compare), [`tasks/invoice-cents`](tasks/invoice-cents), [`tasks/cut-field`](tasks/cut-field), [`tasks/bind-config`](tasks/bind-config), [`tasks/quoted-csv`](tasks/quoted-csv), [`tasks/text-normalize`](tasks/text-normalize), [`tasks/record-sort`](tasks/record-sort), [`tasks/job-order`](tasks/job-order), and [`tasks/date-shift`](tasks/date-shift). All use Harbor schema 1.4.
+The original deterministic tasks are [`tasks/reservation-window`](tasks/reservation-window), [`tasks/version-compare`](tasks/version-compare), [`tasks/invoice-cents`](tasks/invoice-cents), [`tasks/cut-field`](tasks/cut-field), [`tasks/bind-config`](tasks/bind-config), [`tasks/quoted-csv`](tasks/quoted-csv), [`tasks/text-normalize`](tasks/text-normalize), [`tasks/record-sort`](tasks/record-sort), [`tasks/job-order`](tasks/job-order), and [`tasks/date-shift`](tasks/date-shift). All use Harbor schema 1.4. Their verifiers run submitted code in unprivileged subprocesses and check its returned results before awarding a reward.
 
 ## CLI
 
 - `honestenv init <org/task> [--force]` writes a task skeleton to `tasks/<task>` in the current directory and records `org/task` as the task name. Each component must start with a letter or digit and contain only ASCII letters, digits, dots, hyphens, and underscores. Neither component may contain `..`. An existing empty directory can be used. A non-empty destination requires `--force`, which may overwrite its files.
 - `honestenv check <task-dir> [--static-only] [--out report.json]` runs schema checks, factory policy checks, `harbor lint --extend-select ALL`, and official Docker-backed `harbor run` checks. The built-in solution agent (`-a oracle`) must return a valid reward of exactly 1.0, and the empty agent (`-a nop`) must return a valid reward of exactly 0.0. With `--static-only`, it skips the runtime checks. The command optionally writes a JSON report.
 - `honestenv test-gates [--static-only]` runs the same checks for every task under `tasks/`. With `--static-only`, it runs schema, factory policy, and lint checks.
-- `honestenv pack <task-dir> --into <dataset-dir>` runs the full check, including runtime gates, and copies the task into the dataset. It refuses to pack if checks fail or if the destination task directory already exists. It writes or updates `dataset-manifest.json` in the dataset.
+- `honestenv pack <task-dir> --into <dataset-dir>` creates a private snapshot, runs the full check on it, and copies that checked snapshot into the dataset. It rejects symbolic links and special files and preserves ordinary file permissions, including executable bits. It refuses to pack if checks fail or if the destination task directory already exists. It writes or updates `dataset-manifest.json` in the dataset. Use one pack writer per dataset. An interruption between moving the task and updating the manifest can leave an unlisted task, which `verify-pack` rejects.
 - `honestenv verify-pack <dataset-dir>` checks the manifest, task hashes, schema versions, and unlisted task directories without running Harbor or Docker. The recorded tool version is provenance and need not match the running version.
 
 The manifest is a JSON object with a `tasks` object keyed by task directory name.
@@ -65,7 +65,7 @@ Each entry contains `content_sha256`, `schema_version`, `checked_at` (UTC
 ISO-8601 ending in `Z`), and `honestenv_version`. The content hash is SHA-256
 over task files in sorted relative POSIX path order. For each file, the UTF-8
 path and file bytes are each preceded by their length as an 8-byte big-endian
-integer. The digest is lowercase hexadecimal.
+integer. The digest is lowercase hexadecimal. Compare a check report’s `package.content_hash` to the manifest entry to check that they describe the same file content. The hash does not include permissions, empty directories, images, runtime, or network configuration. Packing checks the snapshot’s permissions and content for changes during the check.
 
 ## CI
 
