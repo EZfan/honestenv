@@ -159,7 +159,7 @@ def _check_audit(package: TaskPackage) -> GateReport:
     observations = []
 
     rewards = [match for match in REWARD_ONE.finditer(executable)
-               if re.search(r"reward(?:\.txt|\.json)?\b", executable[match.end():].split("\n", 1)[0].split(";", 1)[0])]
+               if re.search(r"reward(?:\.txt|\.json|_file)?\b|\$\{?[A-Za-z_]", executable[match.end():].split("\n", 1)[0].split(";", 1)[0], re.I)]
     if re.search(r"write_reward\s*\(\s*\)\s*\{[^}]*reward\.txt", executable, re.S):
         rewards += list(re.finditer(r"\bwrite_reward\s+1\b", executable))
     delegated = False
@@ -192,7 +192,7 @@ def _check_audit(package: TaskPackage) -> GateReport:
         after = re.sub(r"^((?:(?!\b(?:else|fi)\b).)*?)\belse\b.*?\bfi\b", r"\1", after, count=1, flags=re.S)
         if re.search(r"\bexit\s+[1-9][0-9]*\b", after):
             failures.append("reward: reward 1 can be followed by a non-zero exit")
-    if re.search(r"\$\{?RANDOM\}?|/dev/(?:u?random)|\b(?:import random|from random import|random\.)|\b(?:date|time\.time|datetime\.now)\b", script):
+    if "reward: nondeterministic test material" in factory.details:
         failures.append("reward: nondeterministic test material")
     details = "; ".join(failures) if failures else "No definite integrity violations found"
     if observations:

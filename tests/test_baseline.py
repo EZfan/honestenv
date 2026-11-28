@@ -131,3 +131,13 @@ if [ "$status" -eq 0 ]; then write_reward 1; else write_reward 0; fi
         report = self.audit()
         self.assertTrue(report.passed, report.details)
         self.assertIn('integrity unknown', report.details)
+
+    def test_variable_reward_destination_and_else_exit(self):
+        self.script = 'echo 1 > "$REWARD_FILE"\n'
+        self.assertFalse(self.audit().passed)
+        self.script = 'printf 1 > "$OUT"\n'
+        self.assertFalse(self.audit().passed)
+        self.script = 'if python /app/program.py; then echo 1 > "$REWARD_FILE"; else exit 1; fi\n'
+        self.assertTrue(self.audit().passed, self.audit().details)
+        self.script = 'if python /app/program.py; then echo 1 > "$REWARD_FILE"; fi\nexit 1\n'
+        self.assertFalse(self.audit().passed)
