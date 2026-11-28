@@ -47,15 +47,45 @@ OpenEnv 0.15.0 的 Harbor 依赖为 0.25.0，与 honestenv 固定的 Harbor 0.27
 ## 工作流
 
 ```mermaid
-flowchart LR
-    A[Task] --> B[Static / Policy Check]
-    B --> C[Docker Oracle / Nop]
-    C --> D[Checked Snapshot / Manifest]
-    D --> E[Regression in CI]
-    E --> A
-    C -. planned .-> F[Behavioral Counterexamples / Probes]
-    F -. planned .-> G[Evidence Pack / Replay]
+flowchart TD
+    A([Task])
+
+    subgraph static["Static & Policy Gates"]
+        direction TD
+        B["Schema / Factory / Lint"]
+    end
+
+    subgraph runtime["Docker Runtime Gates"]
+        direction TD
+        C{"Oracle = 1<br/>Nop = 0"}
+    end
+
+    subgraph delivery["Packaging & CI"]
+        direction TD
+        D["Pack / Verify-pack"]
+        E([CI Regression])
+        D --> E
+    end
+
+    subgraph future["Planned Extensions"]
+        direction TD
+        F["Behavioral Counterexamples & Probes"]
+        G["Evidence Pack & Replay"]
+        F -. planned .-> G
+    end
+
+    A --> B --> C --> D
+    C -. planned .-> F
     G -. planned .-> E
+
+    classDef entry fill:#e8eef6,stroke:#526b85,color:#172b3e
+    classDef gate fill:#e8f2ed,stroke:#567b69,color:#18382b
+    classDef output fill:#f5eee2,stroke:#907451,color:#46331d
+    classDef planned fill:#f0edf5,stroke:#796b8b,color:#352a43,stroke-dasharray: 5 5
+    class A entry
+    class B,C gate
+    class D,E output
+    class F,G planned
 ```
 
 实线表示现有检查和 CI 的使用路径；虚线表示规划能力。当前 `verify-pack` 核验清单和内容哈希，不重放运行证据。
