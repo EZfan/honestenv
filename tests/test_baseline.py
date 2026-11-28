@@ -70,3 +70,74 @@ timeout_sec = 30.0
 
 if __name__ == '__main__':
     unittest.main()
+
+class AuditBaselineTest(BaselineTest):
+    def audit(self):
+        (self.root / 'task.toml').write_text(self.config)
+        (self.root / 'tests/test.sh').write_text(self.script)
+        (self.root / 'environment/Dockerfile').write_text(self.dockerfile)
+        return check_baseline(TaskPackage(self.root, ''), profile='audit')
+
+    def test_factory_findings_are_informational(self):
+        self.dockerfile = 'FROM python:3.12\nRUN curl https://example.com/file\n'
+        report = self.audit()
+        self.assertTrue(report.passed, report.details)
+        self.assertIn('image:', report.details)
+        self.assertIn('build-network:', report.details)
+        self.assertNotIn('test-network: environment/Dockerfile', report.details)
+        self.assertFalse(self.check().passed)
+
+    def test_status_and_helper_reward(self):
+        self.script = '''write_reward() { printf '%s\\n' "$1" > /logs/verifier/reward.txt; }
+python3 -m pytest /tests/test_outputs.py
+status=$?
+if [ "$status" -eq 0 ]; then write_reward 1; else write_reward 0; fi
+'''
+        self.assertTrue(self.audit().passed, self.audit().details)
+
+    def test_integrity_failures(self):
+        for script in (
+            'echo 1 > /logs/verifier/reward.txt\n',
+            'false; status=$?; if [ "$status" -eq 1 ]; then echo 1 > /logs/verifier/reward.txt; fi\n',
+            'if test 1 = 1; then echo 1 > /logs/verifier/reward.txt; fi\n',
+            'python3 -m pytest; status=$?\nif [ "$status" -ne 0 ]; then echo 1 > /logs/verifier/reward.txt; fi\n',
+            self.script + 'exit 1\n',
+        ):
+            with self.subTest(script=script):
+                self.script = script
+                self.assertFalse(self.audit().passed)
+
+    def test_delegated_rewardkit(self):
+        self.script = 'python3 -I /tests/verify.py\n'
+        (self.root / 'tests/verify.py').write_text('from rewardkit import run\nrun("/tests")\n')
+        self.assertTrue(self.audit().passed, self.audit().details)
+        (self.root / 'tests/verify.py').unlink()
+        self.assertTrue(self.audit().passed)
+        self.assertIn('integrity unknown', self.audit().details)
+        self.script = 'python3 -I -m rewardkit /tests\n'
+        self.assertTrue(self.audit().passed, self.audit().details)
+
+    def test_runtime_network_and_delegated_python_are_observations(self):
+        self.script = 'curl https://example.com/file\npython3 /tests/verify.py\n'
+        (self.root / 'tests/verify.py').write_text('from pathlib import Path\nPath("reward.txt").write_text("1")\n')
+        report = self.audit()
+        self.assertTrue(report.passed, report.details)
+        self.assertIn('test-network: tests/test.sh', report.details)
+        self.assertIn('integrity not established', report.details)
+        self.assertNotIn('reward: no reward 1 write found', report.details)
+
+    def test_unrelated_echo_is_not_a_reward(self):
+        self.script = 'echo 1 > /tmp/output\n'
+        report = self.audit()
+        self.assertTrue(report.passed, report.details)
+        self.assertIn('integrity unknown', report.details)
+
+    def test_variable_reward_destination_and_else_exit(self):
+        self.script = 'echo 1 > "$REWARD_FILE"\n'
+        self.assertFalse(self.audit().passed)
+        self.script = 'printf 1 > "$OUT"\n'
+        self.assertFalse(self.audit().passed)
+        self.script = 'if python /app/program.py; then echo 1 > "$REWARD_FILE"; else exit 1; fi\n'
+        self.assertTrue(self.audit().passed, self.audit().details)
+        self.script = 'if python /app/program.py; then echo 1 > "$REWARD_FILE"; fi\nexit 1\n'
+        self.assertFalse(self.audit().passed)

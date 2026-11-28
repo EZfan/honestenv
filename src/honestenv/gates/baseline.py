@@ -18,7 +18,11 @@ PIN = re.compile(r"@sha256:[0-9a-fA-F]{64}$")
 REWARD_ONE = re.compile(r"\b(?:echo\s+['\"]?1(?:\.0+)?['\"]?|printf\s+['\"]?1(?:\.0+)?(?:\\n)?['\"]?)\s*(?:>|\|)")
 
 
-def check_baseline(package: TaskPackage) -> GateReport:
+def check_baseline(package: TaskPackage, profile: str = "factory") -> GateReport:
+    if profile == "audit":
+        return _check_audit(package)
+    if profile != "factory":
+        raise ValueError(f"Unknown profile: {profile}")
     violations = []
     try:
         with (package.root / "task.toml").open("rb") as task_file:
@@ -136,3 +140,61 @@ def check_baseline(package: TaskPackage) -> GateReport:
         violations.append("reward: nondeterministic test material")
 
     return GateReport("factory", not violations, "; ".join(violations) if violations else "Factory policy checks passed")
+
+
+def _check_audit(package: TaskPackage) -> GateReport:
+    factory = check_baseline(package)
+    findings = [] if factory.passed else factory.details.split("; ")
+    findings = [finding.replace("test-network: environment/Dockerfile", "build-network: environment/Dockerfile")
+                .replace("test-network: tests/Dockerfile", "build-network: tests/Dockerfile")
+                for finding in findings if not finding.startswith("reward:")]
+    policy = "; ".join(findings) if findings else "No applicable factory policy findings"
+    try:
+        script = (package.root / "tests/test.sh").read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return GateReport("audit", False, f"reward: cannot read tests/test.sh; factory policy: {policy}")
+
+    executable = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    failures = []
+    observations = []
+
+    rewards = [match for match in REWARD_ONE.finditer(executable)
+               if re.search(r"reward(?:\.txt|\.json|_file)?\b|\$\{?[A-Za-z_]", executable[match.end():].split("\n", 1)[0].split(";", 1)[0], re.I)]
+    if re.search(r"write_reward\s*\(\s*\)\s*\{[^}]*reward\.txt", executable, re.S):
+        rewards += list(re.finditer(r"\bwrite_reward\s+1\b", executable))
+    delegated = False
+    for name in re.findall(r"(?:/tests/|tests/)(verify\.py|checks\.py)\b", executable):
+        try:
+            source = (package.root / "tests" / name).read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue
+        delegated = True
+        observations.append(f"reward: delegated to tests/{name}; integrity not established by static check")
+    delegated |= bool(re.search(r"\bpython(?:3|[0-9.]*)?\s+(?:-\S+\s+)*-m\s+rewardkit\b", executable))
+    if not rewards and not delegated:
+        observations.append("reward: no recognizable reward-producing check found; integrity unknown")
+    elif delegated and not observations:
+        observations.append("reward: delegated to RewardKit; integrity not established by static check")
+    for reward in rewards:
+        before = executable[:reward.start()]
+        condition = re.search(r"\bif\b((?:(?!\bfi\b).)*?)\bthen\b(?:(?!\b(?:fi|else|elif)\b).)*$", before, re.S)
+        success = condition and not re.search(r"(?:\bif\s+!|\s-(?:ne|gt)\s*0\b|!=\s*0)", condition.group(0))
+        if success:
+            expression = condition.group(1)
+            status = re.search(r'\$\{?([A-Za-z_][A-Za-z_0-9]*|\?)\}?', expression)
+            direct_check = re.search(r"\b(?:pytest|python[0-9.]*|cmp|node|playwright)\b", expression)
+            zero_test = re.search(r"(?:-eq|==|=)\s*[\"']?0(?:[\"']|\s|\])", expression)
+            status_check = status and zero_test and (status.group(1) == "?" or re.search(r"\b" + re.escape(status.group(1)) + r"=\$\?", before, re.I))
+            success = direct_check or status_check
+        if not success:
+            failures.append("reward: reward 1 is unconditional or follows a failed test")
+        after = executable[reward.end():]
+        after = re.sub(r"^((?:(?!\b(?:else|fi)\b).)*?)\belse\b.*?\bfi\b", r"\1", after, count=1, flags=re.S)
+        if re.search(r"\bexit\s+[1-9][0-9]*\b", after):
+            failures.append("reward: reward 1 can be followed by a non-zero exit")
+    if "reward: nondeterministic test material" in factory.details:
+        failures.append("reward: nondeterministic test material")
+    details = "; ".join(failures) if failures else "No definite integrity violations found"
+    if observations:
+        details += "; " + "; ".join(observations)
+    return GateReport("audit", not failures, f"{details}; factory policy: {policy}")
