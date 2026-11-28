@@ -10,6 +10,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from . import __version__
+from .evidence import replay, run_case
 from .gates.baseline import check_baseline
 from .gates.lint import check_lint
 from .gates.run import check_agent
@@ -104,8 +105,27 @@ def run() -> int:
     verify_parser = subparsers.add_parser("verify-pack", help="Verify a dataset manifest and its tasks")
     verify_parser.add_argument("dataset_dir", type=Path)
 
+    evidence_parser = subparsers.add_parser("evidence-run", help="Run one case and optionally retain its evidence")
+    evidence_parser.add_argument("task_dir", type=Path)
+    evidence_parser.add_argument("--out", type=Path, required=True)
+    evidence_parser.add_argument("--agent", choices=("oracle", "nop"), required=True)
+    evidence_parser.add_argument("--expected", choices=("must_pass", "must_fail", "unknown"), required=True)
+    evidence_parser.add_argument("--confirmed-defect", action="store_true")
+
+    replay_parser = subparsers.add_parser("replay", help="Replay one retained case")
+    replay_parser.add_argument("pack", type=Path)
+
     args = parser.parse_args()
     try:
+        if args.command == "replay":
+            return replay(args.pack)
+
+        if args.command == "evidence-run":
+            retained = run_case(args.task_dir, args.out, agent=args.agent, expected=args.expected,
+                                confirmed_defect=args.confirmed_defect)
+            print("evidence retained" if retained else "evidence not retained")
+            return 0
+
         if args.command == "init":
             print(init_task(args.name, force=args.force))
             return 0
