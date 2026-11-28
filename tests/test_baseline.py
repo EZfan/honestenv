@@ -55,12 +55,19 @@ timeout_sec = 30.0
     def test_python_delegation(self):
         self.script = 'python3 /tests/grade.py\n'
         grade = self.root / 'tests/grade.py'
-        grade.write_text('from pathlib import Path\nif Path("/app/program.py").exists():\n    Path("/logs/verifier/reward.txt").write_text("1")\n')
+        grade.write_text('from pathlib import Path\nimport json\nif Path("/app/program.py").exists() and json.loads(Path("/app/program.py").read_text()):\n    Path("/logs/verifier/reward.txt").write_text("1")\n')
         self.assertTrue(self.check().passed)
         grade.write_text('print("/app/program.py")\n')
         self.assertIn('reward: no reward 1', self.check().details)
         self.script = '# python3 /tests/grade.py\n'
         self.assertIn('reward: no reward 1', self.check().details)
+
+    def test_python_verifier_findings_reach_factory_report(self):
+        (self.root / 'tests/verify.py').write_text('assert len(actual & expected) > 2\nassert result.stdout == "ok"\n')
+        report = self.check()
+        self.assertFalse(report.passed)
+        self.assertIn('HE-005: tests/verify.py:1:', report.details)
+        self.assertIn('HE-006: tests/verify.py:2:', report.details)
 
     def test_policy_failures(self):
         cases = [

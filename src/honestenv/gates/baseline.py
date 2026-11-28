@@ -14,6 +14,7 @@ import tomllib
 from urllib.parse import urlsplit
 
 from ..types import GateReport, TaskPackage
+from .python_verifier import python_verifier_warnings
 
 
 PIN = re.compile(r"@sha256:[0-9a-fA-F]{64}$")
@@ -173,6 +174,7 @@ def check_baseline(package: TaskPackage) -> GateReport:
     artifacts = config.get("artifacts", [])
     artifacts = artifacts if isinstance(artifacts, list) else []
     violations.extend(grep_warnings(script, artifacts))
+    violations.extend(python_verifier_warnings(package.root))
     delegated = delegated_verifier(package.root, script, artifacts)
     references_artifact = any(isinstance(item, str) and (item in script or item.rsplit("/", 1)[-1].removesuffix(".py") in script) for item in artifacts)
     if not rewards and not delegated:
