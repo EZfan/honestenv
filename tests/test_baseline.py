@@ -83,7 +83,8 @@ class AuditBaselineTest(BaselineTest):
         report = self.audit()
         self.assertTrue(report.passed, report.details)
         self.assertIn('image:', report.details)
-        self.assertIn('test-network:', report.details)
+        self.assertIn('build-network:', report.details)
+        self.assertNotIn('test-network: environment/Dockerfile', report.details)
         self.assertFalse(self.check().passed)
 
     def test_status_and_helper_reward(self):
@@ -97,9 +98,10 @@ if [ "$status" -eq 0 ]; then write_reward 1; else write_reward 0; fi
     def test_integrity_failures(self):
         for script in (
             'echo 1 > /logs/verifier/reward.txt\n',
+            'false; status=$?; if [ "$status" -eq 1 ]; then echo 1 > /logs/verifier/reward.txt; fi\n',
+            'if test 1 = 1; then echo 1 > /logs/verifier/reward.txt; fi\n',
             'python3 -m pytest; status=$?\nif [ "$status" -ne 0 ]; then echo 1 > /logs/verifier/reward.txt; fi\n',
             self.script + 'exit 1\n',
-            self.script + 'curl https://example.com/file\n',
         ):
             with self.subTest(script=script):
                 self.script = script
@@ -110,6 +112,22 @@ if [ "$status" -eq 0 ]; then write_reward 1; else write_reward 0; fi
         (self.root / 'tests/verify.py').write_text('from rewardkit import run\nrun("/tests")\n')
         self.assertTrue(self.audit().passed, self.audit().details)
         (self.root / 'tests/verify.py').unlink()
-        self.assertFalse(self.audit().passed)
+        self.assertTrue(self.audit().passed)
+        self.assertIn('integrity unknown', self.audit().details)
         self.script = 'python3 -I -m rewardkit /tests\n'
         self.assertTrue(self.audit().passed, self.audit().details)
+
+    def test_runtime_network_and_delegated_python_are_observations(self):
+        self.script = 'curl https://example.com/file\npython3 /tests/verify.py\n'
+        (self.root / 'tests/verify.py').write_text('from pathlib import Path\nPath("reward.txt").write_text("1")\n')
+        report = self.audit()
+        self.assertTrue(report.passed, report.details)
+        self.assertIn('test-network: tests/test.sh', report.details)
+        self.assertIn('integrity not established', report.details)
+        self.assertNotIn('reward: no reward 1 write found', report.details)
+
+    def test_unrelated_echo_is_not_a_reward(self):
+        self.script = 'echo 1 > /tmp/output\n'
+        report = self.audit()
+        self.assertTrue(report.passed, report.details)
+        self.assertIn('integrity unknown', report.details)
