@@ -70,3 +70,46 @@ timeout_sec = 30.0
 
 if __name__ == '__main__':
     unittest.main()
+
+class AuditBaselineTest(BaselineTest):
+    def audit(self):
+        (self.root / 'task.toml').write_text(self.config)
+        (self.root / 'tests/test.sh').write_text(self.script)
+        (self.root / 'environment/Dockerfile').write_text(self.dockerfile)
+        return check_baseline(TaskPackage(self.root, ''), profile='audit')
+
+    def test_factory_findings_are_informational(self):
+        self.dockerfile = 'FROM python:3.12\nRUN curl https://example.com/file\n'
+        report = self.audit()
+        self.assertTrue(report.passed, report.details)
+        self.assertIn('image:', report.details)
+        self.assertIn('test-network:', report.details)
+        self.assertFalse(self.check().passed)
+
+    def test_status_and_helper_reward(self):
+        self.script = '''write_reward() { printf '%s\\n' "$1" > /logs/verifier/reward.txt; }
+python3 -m pytest /tests/test_outputs.py
+status=$?
+if [ "$status" -eq 0 ]; then write_reward 1; else write_reward 0; fi
+'''
+        self.assertTrue(self.audit().passed, self.audit().details)
+
+    def test_integrity_failures(self):
+        for script in (
+            'echo 1 > /logs/verifier/reward.txt\n',
+            'python3 -m pytest; status=$?\nif [ "$status" -ne 0 ]; then echo 1 > /logs/verifier/reward.txt; fi\n',
+            self.script + 'exit 1\n',
+            self.script + 'curl https://example.com/file\n',
+        ):
+            with self.subTest(script=script):
+                self.script = script
+                self.assertFalse(self.audit().passed)
+
+    def test_delegated_rewardkit(self):
+        self.script = 'python3 -I /tests/verify.py\n'
+        (self.root / 'tests/verify.py').write_text('from rewardkit import run\nrun("/tests")\n')
+        self.assertTrue(self.audit().passed, self.audit().details)
+        (self.root / 'tests/verify.py').unlink()
+        self.assertFalse(self.audit().passed)
+        self.script = 'python3 -I -m rewardkit /tests\n'
+        self.assertTrue(self.audit().passed, self.audit().details)
