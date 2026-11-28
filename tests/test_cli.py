@@ -81,6 +81,32 @@ class CLITest(unittest.TestCase):
         self.assertEqual(self.run_cli("test-gates"), 0)
         self.assertEqual(self.mock_agent.call_count, 2)
 
+    def test_audit_profile_runs_audit_gates_for_check_and_test_gates(self):
+        def audit_gate(name):
+            def check(package, *, profile):
+                self.assertEqual(profile, "audit")
+                return GateReport(name, True, "audit clean")
+            return check
+
+        output = self.root / "audit.json"
+        with patch("honestenv.cli.check_schema", side_effect=audit_gate("schema")), \
+             patch("honestenv.cli.check_lint", side_effect=audit_gate("lint")), \
+             patch("honestenv.cli.check_baseline", side_effect=audit_gate("audit")):
+            self.assertEqual(self.run_cli("check", self.task, "--static-only", "--profile", "audit", "--out", output), 0)
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual([gate["name"] for gate in report["gates"]], ["schema", "lint", "audit"])
+            tasks = self.root / "tasks"
+            tasks.mkdir()
+            self.task.rename(tasks / "valid")
+            old_cwd = Path.cwd()
+            os.chdir(self.root)
+            self.addCleanup(os.chdir, old_cwd)
+            self.assertEqual(self.run_cli("test-gates", "--static-only", "--profile", "audit"), 0)
+
+    def test_invalid_profile_is_rejected(self):
+        self.assertEqual(self.run_cli("check", self.task, "--profile", "unknown"), 2)
+        self.assertEqual(self.run_cli("test-gates", "--profile", "unknown"), 2)
+
     def test_pack_copies_only_passing_task(self):
         destination = self.root / "dataset"
         self.mock_lint.return_value = GateReport("lint", False, "issues")

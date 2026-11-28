@@ -19,10 +19,14 @@ from .scaffold import init_task
 from .types import CheckReport
 
 
-def check_task(task_dir: Path, *, static_only: bool = False) -> CheckReport:
+def check_task(task_dir: Path, *, static_only: bool = False, profile: str = "factory") -> CheckReport:
     package = load(task_dir)
     original_permissions = permissions(package)
-    gates = [check_schema(package), check_lint(package), check_baseline(package)]
+    if profile == "factory":
+        gates = [check_schema(package), check_lint(package), check_baseline(package)]
+    else:
+        gates = [check_schema(package, profile=profile), check_lint(package, profile=profile),
+                 check_baseline(package, profile=profile)]
     if not static_only:
         gates.extend([
             check_agent(package, agent="oracle", expected_reward=1.0),
@@ -92,10 +96,13 @@ def run() -> int:
     check_parser = subparsers.add_parser("check", help="Check a task directory")
     check_parser.add_argument("task_dir", type=Path)
     check_parser.add_argument("--out", type=Path)
-    check_parser.add_argument("--static-only", action="store_true", help="Run schema, lint and factory checks only")
+    check_parser.add_argument("--static-only", action="store_true", help="Run static checks only")
+
+    check_parser.add_argument("--profile", choices=("factory", "audit"), default="factory")
 
     test_parser = subparsers.add_parser("test-gates", help="Check tasks in tasks/")
     test_parser.add_argument("--static-only", action="store_true")
+    test_parser.add_argument("--profile", choices=("factory", "audit"), default="factory")
 
     pack_parser = subparsers.add_parser("pack", help="Copy a passing task into a dataset")
     pack_parser.add_argument("task_dir", type=Path)
@@ -117,14 +124,14 @@ def run() -> int:
         if args.command == "test-gates":
             tasks_dir = Path("tasks")
             reports = [
-                check_task(task_dir, static_only=args.static_only)
+                check_task(task_dir, static_only=args.static_only, profile=args.profile)
                 for task_dir in sorted(tasks_dir.iterdir())
                 if task_dir.is_dir() and (task_dir / "task.toml").is_file()
             ]
             return 0 if all(report.passed for report in reports) else 1
 
         if args.command == "check":
-            report = check_task(args.task_dir, static_only=args.static_only)
+            report = check_task(args.task_dir, static_only=args.static_only, profile=args.profile)
             if args.out is not None:
                 args.out.write_text(json.dumps(asdict(report), default=str, indent=2) + "\n", encoding="utf-8")
         else:
