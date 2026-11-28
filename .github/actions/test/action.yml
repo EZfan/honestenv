@@ -1,5 +1,10 @@
 name: honestenv test
 description: Run unit tests and static gates
+inputs:
+  test-command:
+    description: Optional command to run the caller's tests
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
@@ -8,7 +13,10 @@ runs:
         python-version: '3.12'
     - shell: bash
       run: pip install "$GITHUB_ACTION_PATH/../../.."
-    - shell: bash
-      run: python -m unittest discover -s tests -v
+    - if: ${{ inputs.test-command != '' }}
+      shell: bash
+      env:
+        TEST_COMMAND: ${{ inputs.test-command }}
+      run: bash -e -o pipefail -c "$TEST_COMMAND"
     - shell: bash
       run: honestenv test-gates --static-only

@@ -11,7 +11,7 @@ Checkable training and evaluation tasks are scarce. [Harbor](https://docs.harbor
 
 ## Quickstart
 
-With Python 3.12 or newer, once the package is published, install it with either:
+With Python 3.12 or newer, install the published package with either:
 
 ```sh
 pip install honestenv
@@ -21,19 +21,23 @@ pip install honestenv
 uv tool install honestenv
 ```
 
-To install from a checkout:
-
-```sh
-git clone https://github.com/EZfan/honestenv.git
-cd honestenv
-pip install -e .
-```
-
 Create a task skeleton and run its static gates:
 
 ```sh
 honestenv init my-org/my-task
 honestenv check tasks/my-task --static-only
+```
+
+The generated task is local to your current directory. Full checks require Docker and Docker Compose.
+
+## Checkout examples
+
+The wheel does not include the repository task pack. After 0.1.1 is released, check out its tag to use the versioned examples:
+
+```sh
+git clone --branch v0.1.1 https://github.com/EZfan/honestenv.git
+cd honestenv
+pip install -e .
 ```
 
 Run the static gates on all local tasks:
@@ -84,8 +88,9 @@ jobs:
 ```
 
 The workflow checks out the caller's repository and the specified honestenv ref.
-Its `test` job installs honestenv, runs the caller's Python unit tests in `tests/`,
-and runs static gates on all shipped tasks. Its `runtime` job runs official
+Its `test` job installs honestenv and runs static gates on all shipped tasks.
+To run caller tests as well, set the optional `test-command` input to a shell command,
+for example `python -m unittest discover -s tests -v`. Its `runtime` job runs official
 Docker-backed Harbor gates. On pull requests it compares changes since the merge base with the base SHA:
 changes under a shipped `tasks/<name>/` select that task; changes under `src/`,
 `pyproject.toml`, `.github/workflows/`, or `.github/actions/` select all tasks.
@@ -96,7 +101,8 @@ On pull requests, the runtime job posts or updates a Markdown checkup with each
 task's schema, lint, factory, and runtime results. Unchanged tasks have runtime
 marked skipped. It uses the default `GITHUB_TOKEN`; grant `contents: read` and
 `pull-requests: write` to the calling job. Fork pull requests may receive a
-read-only token, so their checkup comment may be unavailable.
+read-only token, so their checkup comment may be unavailable. Comment publication
+failures produce a warning and do not change the task-check result.
 
 A reusable workflow's checks are named `<caller-job> / test` and
 `<caller-job> / runtime`. To keep exact check names `test` and `runtime`, compose
@@ -128,7 +134,7 @@ its own `test` and `runtime` jobs. A standalone action repository may come later
 
 ## Factory policy
 
-Factory checks require digest-pinned images in Dockerfiles and `environment.docker_image`, an explicit separate verifier, a non-root agent user, and a restricted agent network policy. Set `environment.network_mode` to `"no-network"`, or use a non-empty restricted allowlist. The agent can override the environment policy. Dockerfiles must not use host networking, and test material must not fetch from public hosts. Reward scripts are checked for obvious unconditional rewards, failure exits, nondeterminism, and missing checks of packaged artifacts. These static checks are heuristics; runtime gates still check the oracle and empty agent.
+Factory checks require digest-pinned images in Dockerfiles and `environment.docker_image`, an explicit separate verifier, a non-root agent user, and a restricted agent network policy. Set `environment.network_mode` to `"no-network"`, or use a non-empty restricted allowlist. The agent can override the environment policy. Dockerfiles must not use host networking, and test material must not fetch from public hosts. Reward scripts are checked for obvious unconditional rewards, failure exits, nondeterminism, and missing checks of packaged artifacts. These static checks are heuristics and can produce false positives, including for comments containing `date`. Passing them does not prove a verifier is correct. Runtime gates check the oracle and empty agent, not every possible solution.
 
 The intentionally invalid packages in `tests/fixtures/bad_tasks/` verify that the
 factory gates reject bad tasks. They are not part of the shipped `tasks/` pack.
@@ -137,9 +143,9 @@ The Headroom Policy requires an explicit, finite `verifier.timeout_sec` of at le
 
 ## Status
 
-Version 0.1.0 includes static and Docker-backed runtime gates, task initialization, packing and pack verification, incremental CI checks, and ten shipped tasks.
+Version 0.1.1 includes static and Docker-backed runtime gates, task initialization, packing and pack verification, incremental CI checks, and ten shipped tasks.
 
-Releases use the `publish.yml` Trusted Publisher workflow and the `pypi` environment.
+To prepare a release, run CI on the exact commit, then create a `v0.1.1` tag at that commit and use the 0.1.1 changelog section as the GitHub Release notes. The `publish.yml` workflow checks that CI succeeded on a main-branch push for the checked-out commit, builds the distributions, and smoke-tests the wheel in a clean environment before publishing through the `pypi` Trusted Publisher environment. The release tag, CI commit, release notes, and published distributions must refer to the same version and commit. Publishing does not verify Docker-backed checks.
 
 ## License
 

@@ -15,10 +15,17 @@ runs:
         EVENT_NAME: ${{ github.event_name }}
         REPORT_PATH: ${{ runner.temp }}/honestenv-checkup.md
       run: python "$GITHUB_ACTION_PATH/checkup.py"
-    - if: ${{ always() && github.event_name == 'pull_request' && steps.gates.outcome != 'skipped' }}
+    - id: comment
+      if: ${{ always() && github.event_name == 'pull_request' && steps.gates.outcome != 'skipped' }}
+      continue-on-error: true
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REPORT_PATH: ${{ runner.temp }}/honestenv-checkup.md
       run: python "$GITHUB_ACTION_PATH/comment.py"
+    - if: ${{ always() && steps.comment.outcome == 'failure' }}
+      shell: bash
+      run: |
+        echo "::warning::Could not publish the honestenv checkup comment. See the comment step for details."
+        echo "Comment publication failed; task-check results are reported separately." >> "$GITHUB_STEP_SUMMARY"

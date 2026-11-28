@@ -4,8 +4,12 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+## 0.1.1
+
 ### Changed
 
+- Make caller unit tests optional in reusable CI and report comment publication failures separately.
+- Document an installed-wheel quickstart and require successful main-branch CI for the exact release commit.
 - Run submitted task code in unprivileged subprocesses and keep scoring in the verifier.
 - Pack a checked snapshot and reject links and special files instead of copying unchecked changes.
 

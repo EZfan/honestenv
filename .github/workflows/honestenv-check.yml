@@ -8,6 +8,12 @@ on:
         required: true
         type: string
 
+      test-command:
+        description: Optional command to run the caller's tests
+        required: false
+        default: ''
+        type: string
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -19,6 +25,8 @@ jobs:
           ref: ${{ inputs.honestenv-ref }}
           path: .honestenv-ci
       - uses: ./.honestenv-ci/.github/actions/test
+        with:
+          test-command: ${{ inputs.test-command }}
 
   runtime:
     runs-on: ubuntu-latest
