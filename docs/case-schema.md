@@ -1,0 +1,9 @@
+# Case replay records, version 1.0
+
+`honestenv.case_schema` defines a separate, minimal JSON report for replay consumers. It does not change `honestenv check --out` or CLI exit codes. `Report.to_json()` writes a versioned object with a `runs` array. Each run embeds its case and binary profile so that its interpretation does not depend on later configuration changes.
+
+A case identifies the task and case versions, specification reference and digest, artifact references, expected label, and label basis. The caller must provide stable references and verify their content. The schema does not collect hashes or evidence automatically.
+
+Construct a `BinaryProfile` before execution with the check configuration version and distinct finite numeric rewards for pass and fail. Keep that profile with the run. `record_reward` reads the Harbor 0.27.0 trial fields `reward_valid` and `verifier_result.rewards.reward`; it does not execute Harbor. A valid mapped reward yields `graded` with `pass` or `fail`. Missing, invalid, non-finite, or unmapped rewards yield `execution_error` with no conclusion. Use `Run` directly for infrastructure errors, `unsupported`, and `skipped`, supplying a reason and no conclusion. Expected labels and actual conclusions are separate; `unknown` is not a failure.
+
+`reward_raw` contains the JSON representation of the original reward as a string, or null if the field was missing. This keeps `NaN`, `Infinity`, and `-Infinity` without emitting invalid JSON numbers. `invalid_reason` distinguishes `missing_reward`, `harbor_reward_invalid`, `invalid_reward_type`, `non_finite_reward`, and `unmapped_reward`. Harbor invalidity takes precedence over value validation. Additional execution errors can use a caller-supplied reason. The caller records tool versions and evidence references. This format does not yet define artifact storage, profile provenance enforcement, or a replay runner.
