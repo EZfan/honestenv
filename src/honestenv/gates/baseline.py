@@ -6,8 +6,10 @@ the timeout must also be at least three times that expected runtime.
 """
 
 import ipaddress
+import ast
 import math
 import re
+import shlex
 import tomllib
 from urllib.parse import urlsplit
 
@@ -16,6 +18,57 @@ from ..types import GateReport, TaskPackage
 
 PIN = re.compile(r"@sha256:[0-9a-fA-F]{64}$")
 REWARD_ONE = re.compile(r"\b(?:echo\s+['\"]?1(?:\.0+)?['\"]?|printf\s+['\"]?1(?:\.0+)?(?:\\n)?['\"]?)\s*(?:>|\|)")
+
+
+def delegated_verifier(root, script, artifacts):
+    for line in script.splitlines():
+        if line.lstrip().startswith('#'):
+            continue
+        match = re.search(r"\bpython(?:3(?:\.\d+)?)?\s+(?:-\w+\s+)*(?:/tests/|tests/|\./)([\w.-]+\.py)(?:\s|;|$)", line)
+        if not match:
+            continue
+        try:
+            source = (root / 'tests' / match.group(1)).read_text(encoding='utf-8')
+            tree = ast.parse(source)
+        except (OSError, UnicodeError, SyntaxError):
+            continue
+        # Require an actual write call, a reward path, a value of one, and
+        # some conditional logic referencing the packaged artifact.
+        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+        writes = any(isinstance(call.func, ast.Attribute) and call.func.attr in {'write', 'write_text'} and call.args and isinstance(call.args[0], ast.Constant) and str(call.args[0].value).strip() in {'1', '1.0'} for call in calls)
+        if writes and '/logs/verifier/reward.txt' in source and any(isinstance(node, (ast.If, ast.IfExp, ast.Assert)) for node in ast.walk(tree)) and any(isinstance(item, str) and (item in source or item.rsplit('/', 1)[-1].removesuffix('.py') in source) for item in artifacts):
+            return True
+    return False
+
+
+def grep_warnings(script, artifacts):
+    warnings = []
+    for number, line in enumerate(script.splitlines(), 1):
+        try:
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=';|&<>')
+            lexer.whitespace_split = True
+            words = list(lexer)
+        except ValueError:
+            continue
+        for i, word in enumerate(words):
+            if word != 'grep':
+                continue
+            args = []
+            for arg in words[i + 1:]:
+                if arg in {';', '|', '&&', '||', ')'}:
+                    break
+                args.append(arg)
+            if not any(item in args for item in artifacts if isinstance(item, str)):
+                continue
+            options = [arg for arg in args if arg.startswith('-')]
+            positional = [arg for arg in args if not arg.startswith('-')]
+            if not positional:
+                continue
+            pattern = positional[0]
+            if '--line-regexp' in options or any(not opt.startswith('--') and 'x' in opt[1:] for opt in options) or (pattern.startswith('^') and pattern.endswith('$')):
+                continue
+            warnings.append(f"HE-004: tests/test.sh:{number}: grep uses an unanchored pattern on a packaged artifact; use -Fx or ^...$")
+    return warnings
 
 
 def check_baseline(package: TaskPackage) -> GateReport:
@@ -119,10 +172,12 @@ def check_baseline(package: TaskPackage) -> GateReport:
     rewards = list(REWARD_ONE.finditer(script))
     artifacts = config.get("artifacts", [])
     artifacts = artifacts if isinstance(artifacts, list) else []
+    violations.extend(grep_warnings(script, artifacts))
+    delegated = delegated_verifier(package.root, script, artifacts)
     references_artifact = any(isinstance(item, str) and (item in script or item.rsplit("/", 1)[-1].removesuffix(".py") in script) for item in artifacts)
-    if not rewards:
+    if not rewards and not delegated:
         violations.append("reward: no reward 1 write found")
-    else:
+    elif rewards:
         for reward in rewards:
             before = script[:reward.start()]
             condition = re.search(r"\bif\b((?:(?!\bfi\b).)*?)\bthen\b(?:(?!\b(?:fi|else|elif)\b).)*$", before, re.S)
@@ -130,7 +185,7 @@ def check_baseline(package: TaskPackage) -> GateReport:
                 violations.append("reward: reward 1 is not conditional on a check of a packaged artifact")
             if re.search(r"\bexit\s+[1-9][0-9]*\b", script[reward.end():]):
                 violations.append("reward: reward 1 can be followed by a non-zero exit")
-    if not references_artifact:
+    if not references_artifact and not delegated:
         violations.append("reward: test does not reference a packaged artifact")
     if re.search(r"\$\{?RANDOM\}?|/dev/(?:u?random)|\b(?:import random|from random import|random\.)|\b(?:date|time\.time|datetime\.now)\b", script):
         violations.append("reward: nondeterministic test material")
