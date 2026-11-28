@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Added
 
+- A Simplified Chinese README.
 - A PyPI Trusted Publisher workflow for releases and manual publishing.
 
 ## 0.1.0 - 2026-11-28
