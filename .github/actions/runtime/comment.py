@@ -31,5 +31,4 @@ except HTTPError as error:
     fork = event.get("pull_request", {}).get("head", {}).get("repo", {}).get("fork", False)
     if error.code == 403 and fork:
         print("Could not post checkup (token may be read-only for a fork PR).", flush=True)
-    else:
-        raise
+    raise

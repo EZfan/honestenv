@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build:
@@ -14,11 +15,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || github.sha }}
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Require successful CI for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          gh run list --workflow ci.yml --commit "$sha" --json headSha,headBranch,event,status,conclusion --limit 100 \
+            | jq -e --arg sha "$sha" 'any(.[]; .headSha == $sha and .headBranch == "main" and .event == "push" and .status == "completed" and .conclusion == "success")'
+      - name: Check release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || (github.ref_type == 'tag' && github.ref_name) || '' }}
+        run: |
+          version=$(PYTHONPATH=src python -c 'import honestenv; print(honestenv.__version__)')
+          test "$RELEASE_TAG" = "v$version"
       - run: python -m pip install build
       - run: python -m build
+      - name: Smoke-test installed wheel
+        run: |
+          python -m venv /tmp/honestenv-release
+          source /tmp/honestenv-release/bin/activate
+          pip install dist/*.whl
+          cd /tmp
+          mkdir honestenv-quickstart
+          cd honestenv-quickstart
+          honestenv init my-org/my-task
+          honestenv check tasks/my-task --static-only
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
