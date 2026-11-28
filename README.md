@@ -1,5 +1,7 @@
 # honestenv
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Verifiable agent tasks, checked before they ship.
 
 honestenv is a Harbor-compatible factory for verifiable agent tasks. Its core is
