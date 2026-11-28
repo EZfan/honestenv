@@ -64,3 +64,18 @@ class SchemaTest(unittest.TestCase):
                 report = check_schema(self.package)
                 self.assertFalse(report.passed)
                 self.assertIn("schema_version", report.details)
+
+    def test_audit_versions_and_verifier_policy(self):
+        for version in ('', 'schema_version = 1', 'schema_version = 1.0',
+                        'schema_version = "1.1"', 'schema_version = 1.2',
+                        'schema_version = "1.3"', 'schema_version = 1.4',
+                        'schema_version = "2.0"'):
+            with self.subTest(version=version):
+                (self.root / "task.toml").write_text(version + '\n[verifier]\nenvironment_mode = "shared"\n')
+                report = check_schema(self.package, profile="audit")
+                self.assertTrue(report.passed, report.details)
+                self.assertIn("schema_version:", report.details)
+        for version in ('schema_version = true', 'schema_version = "3.0"', 'schema_version = 1.5'):
+            with self.subTest(version=version):
+                (self.root / "task.toml").write_text(version)
+                self.assertFalse(check_schema(self.package, profile="audit").passed)
