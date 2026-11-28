@@ -1,11 +1,14 @@
 #!/bin/sh
 set -eu
 mkdir -p /logs/verifier
+chmod 700 /logs/verifier
 echo 0 > /logs/verifier/reward.txt
-if python - <<'PYCODE'
+if python -I - <<'PYCODE'
 import sys
+sys.path.insert(0, "/tests")
+from runner import call
 sys.path.insert(0, "/app")
-from dateshift import add_days
+add_days = call('dateshift', 'add_days')
 
 assert add_days("2023-01-31", 1) == "2023-02-01"
 assert add_days("2023-12-31", 1) == "2024-01-01"

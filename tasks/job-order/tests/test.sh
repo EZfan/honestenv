@@ -1,12 +1,15 @@
 #!/bin/sh
 set -eu
 mkdir -p /logs/verifier
+chmod 700 /logs/verifier
 echo 0 > /logs/verifier/reward.txt
-if python - <<'PYCODE'
+if python -I - <<'PYCODE'
 import copy
 import sys
+sys.path.insert(0, "/tests")
+from runner import call
 sys.path.insert(0, "/app")
-from jobs import order_jobs
+order_jobs = call('jobs', 'order_jobs')
 
 jobs = [
     {"id": "third", "needs": ["second"]},

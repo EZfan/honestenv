@@ -2,13 +2,16 @@
 set -eu
 
 mkdir -p /logs/verifier
+chmod 700 /logs/verifier
 echo 0 > /logs/verifier/reward.txt
 
-if python - <<'PY'
+if python -I - <<'PY'
 import sys
+sys.path.insert(0, "/tests")
+from runner import call
 
 sys.path.insert(0, "/app")
-from version import cmp_version
+cmp_version = call('version', 'cmp_version')
 
 cases = [
     ("1.10", "1.9", 1),

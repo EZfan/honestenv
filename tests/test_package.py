@@ -31,6 +31,18 @@ class PackageTest(unittest.TestCase):
             with self.assertRaises(NotADirectoryError):
                 load(file_path)
 
+    def test_rejects_symbolic_links_and_special_files(self):
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "link").symlink_to("/etc/passwd")
+            with self.assertRaises(ValueError):
+                load(root)
+            (root / "link").unlink()
+            os.mkfifo(root / "pipe")
+            with self.assertRaises(ValueError):
+                load(root)
+
     def test_content_hash_is_stable(self):
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
             first_root = Path(first)

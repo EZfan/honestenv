@@ -2,6 +2,8 @@ import re
 from pathlib import Path
 
 
+TRUSTED_RUNNER = (Path(__file__).parent / "trusted_runner.py").read_text(encoding="utf-8")
+
 IMAGE = "python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b"
 
 
@@ -65,18 +67,22 @@ RUN chown agent:agent /app
 
 WORKDIR /app
 COPY test.sh /tests/test.sh
+COPY runner.py /tests/runner.py
 """,
+        "tests/runner.py": TRUSTED_RUNNER,
         "tests/test.sh": """#!/bin/sh
 set -eu
 
 mkdir -p /logs/verifier
+chmod 700 /logs/verifier
 echo 0 > /logs/verifier/reward.txt
 
-if python - <<'PYTHON'
+if python -I - <<'PYTHON'
 import sys
 
-sys.path.insert(0, "/app")
-from area import rectangle_area
+sys.path.insert(0, "/tests")
+from runner import call
+rectangle_area = call("area", "rectangle_area")
 
 for width, height in [(0, 5), (7, 0), (1, 1), (2, 3), (10, 8)]:
     actual = rectangle_area(width, height)

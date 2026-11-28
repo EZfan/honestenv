@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Changed
+
+- Run submitted task code in unprivileged subprocesses and keep scoring in the verifier.
+- Pack a checked snapshot and reject links and special files instead of copying unchecked changes.
+
 ### Added
 
 - A PyPI Trusted Publisher workflow for releases and manual publishing.

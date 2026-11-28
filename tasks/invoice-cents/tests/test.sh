@@ -1,12 +1,16 @@
 #!/bin/sh
 set -eu
 mkdir -p /logs/verifier
+chmod 700 /logs/verifier
 echo 0 > /logs/verifier/reward.txt
-if python - <<'PY'
+if python -I - <<'PY'
 import sys
+sys.path.insert(0, "/tests")
+from runner import call
 sys.path.insert(0, "/app")
-from money import parse_cents
-from invoice import line_total, invoice_total
+parse_cents = call('money', 'parse_cents')
+line_total = call('invoice', 'line_total')
+invoice_total = call('invoice', 'invoice_total')
 
 for text, expected in [("0.00", 0), ("0.10", 10), ("1.13", 113), ("12.34", 1234)]:
     assert parse_cents(text) == expected
