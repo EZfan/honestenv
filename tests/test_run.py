@@ -9,6 +9,16 @@ from honestenv.gates.run import check_agent
 
 
 class RewardTest(unittest.TestCase):
+    @patch('honestenv.gates.run.subprocess.run')
+    @patch('honestenv.gates.run.harbor_cli.run')
+    def test_missing_compose_is_diagnosed(self, run, compose):
+        run.return_value = CommandResult([], 0, '', '', None)
+        compose.return_value.returncode = 1
+        compose.return_value.stderr = 'unknown flag: --project-name'
+        result = check_agent(TaskPackage(Path('task'), ''), agent='oracle', expected_reward=1)
+        self.assertIn('Docker Compose', result.details)
+        self.assertIn('DOCKER_CONFIG', result.details)
+
     def test_only_valid_numeric_rewards_are_read(self):
         with tempfile.TemporaryDirectory() as directory:
             jobs_dir = Path(directory)

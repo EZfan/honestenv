@@ -35,6 +35,33 @@ timeout_sec = 30.0
     def test_valid(self):
         self.assertTrue(self.check().passed)
 
+    def test_grep_artifact_matching(self):
+        for command, flagged in [
+            ('grep "ok" /app/program.py', True),
+            ('grep -q "ok" /app/program.py', True),
+            ('grep -Fx "ok" /app/program.py', False),
+            ("grep -qE '^ok$' /app/program.py", False),
+            ('grep "ok" /tmp/other', False),
+            ('# grep "ok" /app/program.py', False),
+        ]:
+            with self.subTest(command=command):
+                self.script = self.script.split('# marker')[0] + '# marker\n' + command + '\n'
+                result = self.check()
+                self.assertEqual('HE-004:' in result.details, flagged)
+                if flagged:
+                    self.assertIn('tests/test.sh:', result.details)
+                    self.assertIn('-Fx', result.details)
+
+    def test_python_delegation(self):
+        self.script = 'python3 /tests/grade.py\n'
+        grade = self.root / 'tests/grade.py'
+        grade.write_text('from pathlib import Path\nif Path("/app/program.py").exists():\n    Path("/logs/verifier/reward.txt").write_text("1")\n')
+        self.assertTrue(self.check().passed)
+        grade.write_text('print("/app/program.py")\n')
+        self.assertIn('reward: no reward 1', self.check().details)
+        self.script = '# python3 /tests/grade.py\n'
+        self.assertIn('reward: no reward 1', self.check().details)
+
     def test_policy_failures(self):
         cases = [
             ('image:', 'dockerfile', 'FROM python:3.12\n'),
