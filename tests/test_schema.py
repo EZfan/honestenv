@@ -1,8 +1,9 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from honestenv.gates.schema import check_schema
+from honestenv.gates.schema import check_audit_schema, check_schema
 from honestenv.types import TaskPackage
 
 
@@ -72,10 +73,22 @@ class SchemaTest(unittest.TestCase):
                         'schema_version = "2.0"'):
             with self.subTest(version=version):
                 (self.root / "task.toml").write_text(version + '\n[verifier]\nenvironment_mode = "shared"\n')
-                report = check_schema(self.package, profile="audit")
+                report = check_audit_schema(self.package)
                 self.assertTrue(report.passed, report.details)
                 self.assertIn("schema_version:", report.details)
         for version in ('schema_version = true', 'schema_version = "3.0"', 'schema_version = 1.5'):
             with self.subTest(version=version):
                 (self.root / "task.toml").write_text(version)
-                self.assertFalse(check_schema(self.package, profile="audit").passed)
+                self.assertFalse(check_audit_schema(self.package).passed)
+
+    def test_audit_requires_readable_scripts(self):
+        original = Path.read_bytes
+        for relative_path in ("tests/test.sh", "solution/solve.sh"):
+            with self.subTest(path=relative_path):
+                def read_bytes(path):
+                    if path == self.root / relative_path:
+                        raise PermissionError("denied")
+                    return original(path)
+                with patch.object(Path, "read_bytes", read_bytes):
+                    self.assertIn(relative_path, check_audit_schema(self.package).details)
+                    self.assertTrue(check_schema(self.package).passed)

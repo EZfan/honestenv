@@ -3,11 +3,26 @@ import tomllib
 from ..types import GateReport, TaskPackage
 
 
-def check_schema(package: TaskPackage, profile: str = "factory") -> GateReport:
+def check_schema(package: TaskPackage) -> GateReport:
+    return _check_schema(package, audit=False)
+
+
+def check_audit_schema(package: TaskPackage) -> GateReport:
+    return _check_schema(package, audit=True)
+
+
+def _check_schema(package: TaskPackage, *, audit: bool) -> GateReport:
     root = package.root
     for relative_path in ("instruction.md", "task.toml", "tests/test.sh", "solution/solve.sh"):
         if not (root / relative_path).is_file():
             return GateReport("schema", False, f"Missing {relative_path}")
+
+    if audit:
+        for relative_path in ("tests/test.sh", "solution/solve.sh"):
+            try:
+                (root / relative_path).read_bytes()
+            except OSError:
+                return GateReport("schema", False, f"Cannot read {relative_path}")
 
     try:
         instruction = (root / "instruction.md").read_text(encoding="utf-8")
@@ -23,7 +38,7 @@ def check_schema(package: TaskPackage, profile: str = "factory") -> GateReport:
         return GateReport("schema", False, "Cannot parse task.toml")
 
     version = config.get("schema_version")
-    if profile == "audit":
+    if audit:
         supported = {"1", "1.0", "1.1", "1.2", "1.3", "1.4", "2.0"}
         if version is not None and (type(version) not in (str, int, float) or str(version) not in supported):
             return GateReport("schema", False, f"Unsupported schema_version: {version!r}")
@@ -36,11 +51,11 @@ def check_schema(package: TaskPackage, profile: str = "factory") -> GateReport:
         if not isinstance(docker_image, str) or not docker_image.strip():
             return GateReport("schema", False, "Missing environment/Dockerfile or environment.docker_image")
 
-    if profile != "audit" and "verifier" in config:
+    if not audit and "verifier" in config:
         verifier = config["verifier"]
         if not isinstance(verifier, dict) or verifier.get("environment_mode") != "separate":
             return GateReport("schema", False, 'verifier.environment_mode must be "separate"')
 
-    if profile == "audit":
+    if audit:
         return GateReport("schema", True, f"Task schema is valid; schema_version: {version if version is not None else 'missing'}")
     return GateReport("schema", True, "Task schema is valid")

@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from honestenv import CommandResult, GateReport, TaskPackage, harbor_cli
-from honestenv.gates.lint import check_lint
+from honestenv.gates.lint import check_audit_lint, check_lint
 
 
 class HarborLintTest(unittest.TestCase):
@@ -38,13 +38,14 @@ class HarborLintTest(unittest.TestCase):
                 self.assertEqual(check_lint(package), GateReport("lint", passed, details))
                 lint.assert_called_with(package.root)
 
+    @patch("honestenv.gates.lint._compose_host_incompatibility", return_value=True)
     @patch("honestenv.gates.lint.harbor_cli.lint")
-    def test_audit_reports_both_runs_and_only_known_policy_findings_pass(self, lint):
+    def test_audit_reports_both_runs_and_only_known_policy_findings_pass(self, lint, compose_probe):
         package = TaskPackage(Path("task"), "hash")
         compose = "task/environment/docker-compose.yaml [invalid-task-config] Docker Compose could not load this configuration; run docker compose config to inspect the error locally."
         root = "task/task.toml [root-agent] agent.user: Agent user is omitted or root; configure a non-root user."
         lint.side_effect = [CommandResult([], 1, compose, ""), CommandResult([], 1, compose + "\n" + root, "")]
-        report = check_lint(package, profile="audit")
+        report = check_audit_lint(package)
         self.assertTrue(report.passed, report.details)
         self.assertIn("Harbor default", report.details)
         self.assertIn("Harbor --extend-select ALL", report.details)
@@ -56,4 +57,18 @@ class HarborLintTest(unittest.TestCase):
                         CommandResult([], 2, root, ""), CommandResult([], 1, "", "")):
             with self.subTest(failure=failure):
                 lint.side_effect = [CommandResult([], 0, "", ""), failure]
-                self.assertFalse(check_lint(package, profile="audit").passed)
+                self.assertFalse(check_audit_lint(package).passed)
+
+    @patch("honestenv.gates.lint.subprocess.run")
+    @patch("honestenv.gates.lint.harbor_cli.lint")
+    def test_compose_diagnostic_requires_host_and_valid_config_probes(self, lint, run):
+        package = TaskPackage(Path("task"), "hash")
+        finding = "task/environment/docker-compose.yaml [invalid-task-config] Docker Compose could not load this configuration; run docker compose config to inspect the error locally."
+        lint.return_value = CommandResult([], 1, finding, "")
+        unsupported = subprocess.CompletedProcess([], 1, "", "unknown flag: --no-env-resolution")
+        valid = subprocess.CompletedProcess([], 0, "{}", "")
+        invalid = subprocess.CompletedProcess([], 1, "", "yaml: malformed")
+        for probes, expected in (([unsupported, valid], True), ([unsupported, invalid], False), ([invalid], False)):
+            with self.subTest(probes=probes):
+                run.side_effect = probes
+                self.assertEqual(check_audit_lint(package).passed, expected)
